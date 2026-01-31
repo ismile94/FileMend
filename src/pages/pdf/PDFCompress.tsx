@@ -17,12 +17,16 @@ import { useToast } from '@/hooks/use-toast';
 import { formatFileSize } from '@/utils/fileHelpers';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjs from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url
+).toString();
+
 
 type AutoCompressionMode = 'lossless' | 'image' | 'hybrid';
 
@@ -42,7 +46,7 @@ function getSettingsForMode(mode: AutoCompressionMode): { scale: number; imageQu
 
 /** PDF'i analiz eder; sayfa sayfa metin oranına göre lossless / image / hybrid modunu döner */
 async function analyzePdfMode(arrayBuffer: ArrayBuffer): Promise<AutoCompressionMode> {
-  const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdfJsDoc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdfJsDoc.numPages;
   if (numPages === 0) return 'lossless';
 
@@ -65,7 +69,7 @@ async function analyzePdfMode(arrayBuffer: ArrayBuffer): Promise<AutoCompression
  */
 const TEXT_AREA_RATIO_THRESHOLD = 0.15; // Sayfa alanının %15'inden fazlası metin → metin sayfası (kayıpsız kopyala)
 
-async function isPageTextHeavy(page: pdfjsLib.PDFPageProxy): Promise<boolean> {
+async function isPageTextHeavy(page: pdfjs.PDFPageProxy): Promise<boolean> {
   const viewport = page.getViewport({ scale: 1 });
   const pageArea = viewport.width * viewport.height;
   if (pageArea <= 0) return true;
@@ -85,7 +89,7 @@ async function isPageTextHeavy(page: pdfjsLib.PDFPageProxy): Promise<boolean> {
 
 /** Sayfayı canvas'a çizip JPEG blob döner (sadece Yüksek seviye için) */
 const renderPageToJpeg = (
-  page: pdfjsLib.PDFPageProxy,
+  page: pdfjs.PDFPageProxy,
   scale: number,
   imageQuality: number
 ): Promise<{ blob: Blob; widthPt: number; heightPt: number }> => {
@@ -203,7 +207,7 @@ export const PDFCompress = () => {
       let compressedBlob: Blob;
 
       if (mode === 'hybrid') {
-        const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdfJsDoc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const sourcePdf = await PDFDocument.load(arrayBuffer);
         const numPages = pdfJsDoc.numPages;
         const outPdf = await PDFDocument.create();
@@ -235,7 +239,7 @@ export const PDFCompress = () => {
         const pdfBytes = await outPdf.save({ useObjectStreams: true });
         compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       } else if (mode === 'image') {
-        const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdfJsDoc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const numPages = pdfJsDoc.numPages;
         const outPdf = await PDFDocument.create();
 
