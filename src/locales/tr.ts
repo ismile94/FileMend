@@ -593,6 +593,8 @@ export const tr = {
     mobileOptimized: 'Mobil için optimize',
     mobileCompact: 'Mobil için daha kompakt',
     leftGroupModeSelector: 'Sol Grup: Mod Seçici + Sıralama + Döndür + Temizle',
+    title: "Yorumlar",
+    placeholder: "Yorum yaz"
   },
   ui: {
     page: 'sayfa',

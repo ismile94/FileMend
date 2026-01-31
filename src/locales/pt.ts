@@ -662,6 +662,12 @@ export const pt = {
     loadingLibrary: 'Carregando...',
     processingFile: 'Processando...',
   },
+
+  
+  comments: {
+    title: "Comments",
+    placeholder: "Write a comment"
+  },
   
   // Language
   language: {
