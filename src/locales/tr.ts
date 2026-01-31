@@ -345,6 +345,18 @@ export const tr = {
     cancel: 'İptal',
     yes: 'Evet',
     delete: 'Sil',
+    downloadPrefix: 'sıkıştırılmış_',
+    zipFilenamePrefix: 'sıkıştırılmış_pdf_',
+    errors: {
+      canvasContextMissing: 'Canvas 2D bağlamı kullanılamıyor',
+      toBlobFailed: 'Görsel blob oluşturulamadı',
+    },
+    log: {
+      analyzeErrorFallback: 'Analiz hatası, kayıpsız mod kullanılıyor:',
+      compressionError: 'PDF sıkıştırma hatası:',
+    },
+    statsZeroSize: '0 KB',
+    statsPlaceholder: '—',
   },
   
   // PDF Rotate Page
@@ -750,7 +762,7 @@ export const tr = {
     flags: {
       tr: '🇹🇷',
       en: '🇬🇧',
-      pt: '🇵🇹',
+      pt: '🇧🇷',
     },
   },
 };

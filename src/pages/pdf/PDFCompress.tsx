@@ -17,15 +17,12 @@ import { useToast } from '@/hooks/use-toast';
 import { formatFileSize } from '@/utils/fileHelpers';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import * as pdfjs from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString();
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 
 type AutoCompressionMode = 'lossless' | 'image' | 'hybrid';
@@ -46,7 +43,7 @@ function getSettingsForMode(mode: AutoCompressionMode): { scale: number; imageQu
 
 /** PDF'i analiz eder; sayfa sayfa metin oranına göre lossless / image / hybrid modunu döner */
 async function analyzePdfMode(arrayBuffer: ArrayBuffer): Promise<AutoCompressionMode> {
-  const pdfJsDoc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdfJsDoc.numPages;
   if (numPages === 0) return 'lossless';
 
@@ -69,7 +66,7 @@ async function analyzePdfMode(arrayBuffer: ArrayBuffer): Promise<AutoCompression
  */
 const TEXT_AREA_RATIO_THRESHOLD = 0.15; // Sayfa alanının %15'inden fazlası metin → metin sayfası (kayıpsız kopyala)
 
-async function isPageTextHeavy(page: pdfjs.PDFPageProxy): Promise<boolean> {
+async function isPageTextHeavy(page: pdfjsLib.PDFPageProxy): Promise<boolean> {
   const viewport = page.getViewport({ scale: 1 });
   const pageArea = viewport.width * viewport.height;
   if (pageArea <= 0) return true;
@@ -87,11 +84,12 @@ async function isPageTextHeavy(page: pdfjs.PDFPageProxy): Promise<boolean> {
   return ratio >= TEXT_AREA_RATIO_THRESHOLD;
 }
 
-/** Sayfayı canvas'a çizip JPEG blob döner (sadece Yüksek seviye için) */
+/** Sayfayı canvas'a çizip JPEG blob döner */
 const renderPageToJpeg = (
-  page: pdfjs.PDFPageProxy,
+  page: pdfjsLib.PDFPageProxy,
   scale: number,
-  imageQuality: number
+  imageQuality: number,
+  errors: { canvasContext: string; toBlob: string }
 ): Promise<{ blob: Blob; widthPt: number; heightPt: number }> => {
   const viewport = page.getViewport({ scale });
   const sizePt = page.getViewport({ scale: 1 });
@@ -99,7 +97,7 @@ const renderPageToJpeg = (
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) return Promise.reject(new Error('Canvas 2d context yok'));
+  if (!ctx) return Promise.reject(new Error(errors.canvasContext));
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   return page
@@ -107,7 +105,7 @@ const renderPageToJpeg = (
     .promise.then(() => {
       return new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error('toBlob başarısız'))),
+          (b) => (b ? resolve(b) : reject(new Error(errors.toBlob))),
           'image/jpeg',
           imageQuality
         );
@@ -192,23 +190,32 @@ export const PDFCompress = () => {
 
     try {
       const arrayBuffer = await fileStatus.file.arrayBuffer();
-      const bufferCopy = arrayBuffer.slice(0);
+      // pdfjs-dist ArrayBuffer'ı worker'a transfer edebilir ve detach eder.
+      // Aynı buffer pdf-lib'e verilirse "detached ArrayBuffer" hatası olur.
+      // Her kütüphane için bağımsız kopya kullan (slice yeni buffer oluşturur).
+      const bufferForAnalyze = arrayBuffer.slice(0);
+      const bufferForPdfJs = arrayBuffer.slice(0);
+      const bufferForPdfLib = arrayBuffer.slice(0);
 
       setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 5 } : f)));
       let mode: AutoCompressionMode;
       try {
-        mode = await analyzePdfMode(bufferCopy);
+        mode = await analyzePdfMode(bufferForAnalyze);
       } catch (analyzeError) {
-        console.warn('Analiz hatası, kayıpsız mod kullanılıyor:', analyzeError);
+        console.warn(t.pdfCompress.log.analyzeErrorFallback, analyzeError);
         mode = 'lossless';
       }
       const imageSettings = getSettingsForMode(mode);
+      const renderErrors = {
+        canvasContext: t.pdfCompress.errors.canvasContextMissing,
+        toBlob: t.pdfCompress.errors.toBlobFailed,
+      };
 
       let compressedBlob: Blob;
 
       if (mode === 'hybrid') {
-        const pdfJsDoc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-        const sourcePdf = await PDFDocument.load(arrayBuffer);
+        const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferForPdfJs }).promise;
+        const sourcePdf = await PDFDocument.load(bufferForPdfLib);
         const numPages = pdfJsDoc.numPages;
         const outPdf = await PDFDocument.create();
 
@@ -226,7 +233,8 @@ export const PDFCompress = () => {
             const { blob, widthPt, heightPt } = await renderPageToJpeg(
               page,
               imageSettings.scale,
-              imageSettings.imageQuality
+              imageSettings.imageQuality,
+              renderErrors
             );
             const jpegBytes = await blob.arrayBuffer();
             const image = await outPdf.embedJpg(jpegBytes);
@@ -239,7 +247,7 @@ export const PDFCompress = () => {
         const pdfBytes = await outPdf.save({ useObjectStreams: true });
         compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       } else if (mode === 'image') {
-        const pdfJsDoc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferForPdfJs }).promise;
         const numPages = pdfJsDoc.numPages;
         const outPdf = await PDFDocument.create();
 
@@ -251,7 +259,8 @@ export const PDFCompress = () => {
           const { blob, widthPt, heightPt } = await renderPageToJpeg(
             page,
             imageSettings.scale,
-            imageSettings.imageQuality
+            imageSettings.imageQuality,
+            renderErrors
           );
           const jpegBytes = await blob.arrayBuffer();
           const image = await outPdf.embedJpg(jpegBytes);
@@ -263,7 +272,7 @@ export const PDFCompress = () => {
         const pdfBytes = await outPdf.save({ useObjectStreams: true });
         compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       } else {
-        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pdfDoc = await PDFDocument.load(bufferForPdfLib);
         setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 50 } : f)));
 
         const pdfBytes = await pdfDoc.save({
@@ -300,7 +309,7 @@ export const PDFCompress = () => {
           .replace('{mode}', modeLabel),
       });
     } catch (error) {
-      console.error('PDF sıkıştırma hatası:', error);
+      console.error(t.pdfCompress.log.compressionError, error);
       setFiles(prev => prev.map(f =>
         f.id === fileId
           ? { ...f, isProcessing: false, error: t.pdfCompress.compressionFailed, progress: 0 }
@@ -367,7 +376,7 @@ export const PDFCompress = () => {
     const url = URL.createObjectURL(fileStatus.compressedBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `compressed_${fileStatus.file.name}`;
+    a.download = `${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -395,11 +404,12 @@ export const PDFCompress = () => {
       const zip = new JSZip();
       
       compressedFiles.forEach(fileStatus => {
-        zip.file(`compressed_${fileStatus.file.name}`, fileStatus.compressedBlob!);
+        zip.file(`${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`, fileStatus.compressedBlob!);
       });
       
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, `compressed_pdfs_${new Date().toISOString().split('T')[0]}.zip`);
+      const zipDate = new Date().toISOString().split('T')[0];
+      saveAs(zipBlob, `${t.pdfCompress.zipFilenamePrefix}${zipDate}.zip`);
       
       toast({
         title: t.messages.success,
@@ -453,31 +463,28 @@ export const PDFCompress = () => {
 
       {/* Stats Cards */}
       {files.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
-          <Card className="p-1.5 min-w-0">
-            <div className="text-sm font-bold text-blue-600 leading-tight">{stats.fileCount}</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">{t.pdfCompress.totalFiles}</div>
-          </Card>
-          <Card className="p-1.5 min-w-0">
-            <div className="text-sm font-bold text-green-600 leading-tight">{stats.compressedCount}</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">{t.pdfCompress.compressed}</div>
-          </Card>
-          <Card className="p-1.5 min-w-0">
-            <div className="text-xs font-bold text-orange-600 leading-tight">
-              {stats.compressedCount > 0 ? formatFileSize(stats.totalSaved) : '0 KB'}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          <Card className="p-2 min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-bold text-blue-600">{stats.fileCount}</span>
+              <span className="text-sm text-muted-foreground">{t.pdfCompress.totalFiles}</span>
             </div>
-            <div className="text-[10px] text-muted-foreground leading-tight truncate">
-              {stats.compressedCount > 0 ? (
-                <><span>{formatFileSize(stats.totalOriginal)}</span> → <span className="text-green-600">{formatFileSize(stats.totalCompressed)}</span></>
-              ) : (
-                '—'
-              )}
-            </div>
-            <div className="text-[10px] text-muted-foreground leading-tight">{t.pdfCompress.saved}</div>
           </Card>
-          <Card className="p-1.5 min-w-0">
-            <div className="text-sm font-bold text-purple-600 leading-tight">{Math.round(stats.avgCompression)}%</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">{t.pdfCompress.avgCompression}</div>
+          <Card className="p-2 min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-bold text-green-600">{stats.compressedCount}</span>
+              <span className="text-sm text-muted-foreground">{t.pdfCompress.compressed}</span>
+            </div>
+          </Card>
+          <Card className="p-2 min-w-0">
+            <div className="text-sm font-bold text-orange-600">{stats.compressedCount > 0 ? formatFileSize(stats.totalSaved) : t.pdfCompress.statsZeroSize}</div>
+            <div className="text-xs text-muted-foreground">{stats.compressedCount > 0 ? (<>{formatFileSize(stats.totalOriginal)} → <span className="text-green-600">{formatFileSize(stats.totalCompressed)}</span></>) : t.pdfCompress.statsPlaceholder}</div>
+          </Card>
+          <Card className="p-2 min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-bold text-purple-600">{Math.round(stats.avgCompression)}%</span>
+              <span className="text-sm text-muted-foreground">{t.pdfCompress.avgCompression}</span>
+            </div>
           </Card>
         </div>
       )}
@@ -739,13 +746,6 @@ export const PDFCompress = () => {
                 className="px-6 py-2 min-w-[80px]"
               >
                 {t.pdfCompress.cancel}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => removeFile(showDeleteConfirm, true)}
-                className="px-6 py-2 min-w-[80px]"
-              >
-                {t.pdfCompress.yes}
               </Button>
               <Button
                 onClick={() => removeFile(showDeleteConfirm, true)}

@@ -1,5 +1,6 @@
-import { FileText, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { useTranslation } from '@/contexts/LanguageContext';
+import logoSrc from '@/assets/FileMend_logo.png';
 
 export const Footer = () => {
   const { t } = useTranslation();
@@ -9,11 +10,8 @@ export const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 bg-primary rounded-lg">
-                <FileText className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-bold">{t.footer.brand.title}</span>
+            <div className="mb-4">
+              <img src={logoSrc} alt="FileMend" className="h-9 w-auto object-contain" />
             </div>
             <p className="text-sm text-muted-foreground">
               {t.footer.brand.description}

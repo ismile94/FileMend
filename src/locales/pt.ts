@@ -345,6 +345,18 @@ export const pt = {
     cancel: 'Cancelar',
     yes: 'Sim',
     delete: 'Excluir',
+    downloadPrefix: 'comprimido_',
+    zipFilenamePrefix: 'pdfs_comprimidos_',
+    errors: {
+      canvasContextMissing: 'Contexto 2D do Canvas indisponível',
+      toBlobFailed: 'Falha ao criar blob de imagem',
+    },
+    log: {
+      analyzeErrorFallback: 'Erro de análise, usando modo sem perda:',
+      compressionError: 'Erro de compressão PDF:',
+    },
+    statsZeroSize: '0 KB',
+    statsPlaceholder: '—',
   },
   
   // PDF Rotate Page
@@ -752,7 +764,7 @@ export const pt = {
     flags: {
       tr: '🇹🇷',
       en: '🇬🇧',
-      pt: '🇵🇹',
+      pt: '🇧🇷',
     },
   },
 };
