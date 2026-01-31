@@ -144,20 +144,146 @@ export const pt = {
   
   // PDF Split Page
   pdfSplit: {
-    title: 'Dividir PDF',
-    description: 'Divida seu arquivo PDF em múltiplos arquivos.',
-    addRange: 'Adicionar Intervalo',
-    removeRange: 'Remover Intervalo',
-    split: 'Dividir',
-    pageRange: 'Intervalo de Páginas',
-    from: 'De',
-    to: 'Para',
-    start: 'Início',
-    end: 'Fim',
-    totalPages: 'Total de {count} páginas',
-    splitting: 'Dividindo...',
-    processing: 'Processando...',
-    splitAndDownload: 'Dividir e Baixar PDF',
+    title: 'Divisor Avançado de PDF',
+    description: 'Divida seu arquivo PDF em múltiplos arquivos com 6 métodos diferentes.',
+    // Header
+    fileName: '{name} • {count} páginas',
+    bookmarksFound: '({count} bookmarks encontrados)',
+    clear: 'Limpar',
+    download: 'Baixar',
+    downloadWithCount: 'Baixar ({count})',
+    downloadZip: 'Baixar (ZIP)',
+    // Split modes
+    modes: {
+      range: 'Intervalo',
+      visual: 'Visual',
+      everyN: 'A cada {count} páginas',
+      bookmarks: 'Bookmark ({count})',
+      size: 'Tamanho (~{size}MB)',
+      blankPage: 'Página em Branco',
+      pattern: 'Padrão',
+    },
+    // Range mode
+    rangeMode: {
+      placeholder: '1-5, 10, 15-20',
+      apply: 'Aplicar Intervalos',
+      description: 'Separe por vírgula os intervalos. Ex: 1-5, 10, 15-20',
+    },
+    // Every N mode
+    everyNMode: {
+      every: 'A cada',
+      pages: 'páginas',
+      apply: 'Aplicar',
+    },
+    // Size mode
+    sizeMode: {
+      targetSize: 'Tamanho alvo:',
+      mb: 'MB',
+      apply: 'Aplicar',
+    },
+    // Bookmark mode
+    bookmarkMode: {
+      title: 'Dividir por Bookmarks do PDF',
+      apply: 'Dividir por Bookmarks',
+      noBookmarks: 'Nenhum bookmark encontrado neste PDF',
+      preview: 'Visualização dos bookmarks:',
+      moreItems: 'mais itens...',
+    },
+    // Blank page mode
+    blankPageMode: {
+      title: 'Dividir por Páginas em Branco',
+      apply: 'Escanear e Dividir',
+      threshold: 'Valor limite:',
+      thresholdDesc: 'caracteres ou menos de conteúdo = página em branco',
+      instruction: 'Use páginas em branco como pontos de divisão',
+    },
+    // Pattern mode
+    patternMode: {
+      title: 'Dividir por Padrão de Texto (Regex)',
+      apply: 'Aplicar Padrão',
+      placeholder: 'Capítulo|Chapter|Página \\d+|^1\\.\\s',
+      description: 'Cria nova seção quando encontra este padrão no conteúdo da página. Suporta Regex.',
+    },
+    // Visual mode
+    visualMode: {
+      selectAll: 'Selecionar Tudo',
+      clear: 'Limpar',
+      selected: '{count} páginas selecionadas',
+      createGroup: 'Criar Seção',
+      noSections: 'Nenhuma seção ainda. Selecione um método de divisão.',
+    },
+    // Groups section
+    groups: {
+      title: 'Seções ({count})',
+      noGroups: 'Nenhuma seção ainda. Selecione um método de divisão.',
+      unnamedSection: 'Seção {count}',
+      allPages: 'Todas as Páginas',
+      pageInfo: '{count} páginas • ~{size} MB',
+      blankIndicator: '(B)',
+      // Split reasons
+      splitReasons: {
+        manual: 'Seleção manual',
+        bookmark: 'Bookmark: {title}',
+        blankPage: 'Após página em branco (página {page})',
+        pattern: 'Correspondência de padrão: página {page}',
+        range: 'Intervalo manual: {range}',
+        unassigned: 'Páginas não atribuídas',
+        lastSection: 'Última seção',
+      },
+    },
+    // Messages
+    messages: {
+      fileLoaded: '{count} páginas carregadas',
+      fileLoadError: 'Erro ao carregar PDF',
+      pleaseUploadPdf: 'Por favor, carregue apenas arquivos PDF',
+      selectPagesFirst: 'Selecione páginas primeiro',
+      sectionCreated: '{count} páginas adicionadas',
+      sectionCreatedTitle: 'Seção Criada',
+      sectionsCreated: '{count} seções criadas',
+      splitCompleted: 'Divisão Concluída',
+      smartSplitCompleted: 'Divisão Inteligente Concluída',
+      smartSplitDesc: '{count} seções detectadas. Revise e confirme.',
+      rangeSplitCompleted: '{count} grupos criados',
+      patternMatches: '{count} correspondências encontradas, {count} seções criadas',
+      blankPagesFound: '{count} páginas em branco encontradas, {count} seções criadas',
+      unassignedPages: '{count} páginas não atribuídas, adicionadas ao grupo "Páginas Restantes"',
+      noValidRanges: 'Nenhum intervalo de página válido encontrado',
+      noPatternMatches: 'Padrão não encontrado em nenhuma página',
+      invalidRegex: 'Padrão Regex inválido',
+      noPatternProvided: 'Por favor, insira um padrão',
+      noRangesProvided: 'Por favor, insira intervalos de página',
+      processingStarted: 'Download iniciado',
+      downloadingFiles: 'Baixando {count} arquivos...',
+      downloadingZip: 'Baixando {count} arquivos como ZIP...',
+      splitError: 'Operação de divisão de PDF falhou',
+    },
+    // Status messages
+    status: {
+      automaticModeActive: 'Modo de divisão automática ativo. Configure as configurações acima.',
+      noBookmarksFound: 'Nenhum bookmark encontrado neste PDF',
+      blankPageInstruction: 'Clique em "Escanear e Dividir" para detecção de página em branco',
+      processing: 'Processando PDF...',
+      pleaseWait: 'Por favor, aguarde, separando páginas...',
+    },
+    // Privacy
+    privacy: {
+      title: 'Garantia de Privacidade',
+      description: 'Todas as operações são realizadas no seu navegador',
+      points: [
+        'Todas as operações são realizadas no seu navegador',
+        'Nenhum arquivo é enviado para o servidor',
+        'Análise de bookmark e conteúdo de PDF é feita localmente',
+      ],
+      badge: 'Seguro: Seus arquivos são processados no seu dispositivo',
+    },
+    // Preview modal
+    preview: {
+      close: 'Fechar',
+    },
+    // Loading
+    loading: {
+      label: 'Processando PDF...',
+    },
   },
   
   // PDF Compress Page

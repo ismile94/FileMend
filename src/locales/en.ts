@@ -144,20 +144,146 @@ export const en = {
   
   // PDF Split Page
   pdfSplit: {
-    title: 'PDF Split',
-    description: 'Split your PDF file into multiple files.',
-    addRange: 'Add Range',
-    removeRange: 'Remove Range',
-    split: 'Split',
-    pageRange: 'Page Range',
-    from: 'From',
-    to: 'To',
-    start: 'Start',
-    end: 'End',
-    totalPages: 'Total {count} pages',
-    splitting: 'Splitting...',
-    processing: 'Processing...',
-    splitAndDownload: 'Split and Download PDF',
+    title: 'Advanced PDF Splitter',
+    description: 'Split your PDF file into multiple files with 6 different methods.',
+    // Header
+    fileName: '{name} • {count} pages',
+    bookmarksFound: '({count} bookmarks found)',
+    clear: 'Clear',
+    download: 'Download',
+    downloadWithCount: 'Download ({count})',
+    downloadZip: 'Download (ZIP)',
+    // Split modes
+    modes: {
+      range: 'Range',
+      visual: 'Visual',
+      everyN: 'Every {count} pages',
+      bookmarks: 'Bookmark ({count})',
+      size: 'Size (~{size}MB)',
+      blankPage: 'Blank Page',
+      pattern: 'Pattern',
+    },
+    // Range mode
+    rangeMode: {
+      placeholder: '1-5, 10, 15-20',
+      apply: 'Apply Ranges',
+      description: 'Separate ranges with commas. Ex: 1-5, 10, 15-20',
+    },
+    // Every N mode
+    everyNMode: {
+      every: 'Every',
+      pages: 'pages',
+      apply: 'Apply',
+    },
+    // Size mode
+    sizeMode: {
+      targetSize: 'Target size:',
+      mb: 'MB',
+      apply: 'Apply',
+    },
+    // Bookmark mode
+    bookmarkMode: {
+      title: 'Split by PDF Bookmarks',
+      apply: 'Split by Bookmarks',
+      noBookmarks: 'No bookmarks found in this PDF',
+      preview: 'Bookmark preview:',
+      moreItems: 'more items...',
+    },
+    // Blank page mode
+    blankPageMode: {
+      title: 'Split by Blank Pages',
+      apply: 'Scan and Split',
+      threshold: 'Threshold:',
+      thresholdDesc: 'characters or less content = blank page',
+      instruction: 'Use blank pages as split points',
+    },
+    // Pattern mode
+    patternMode: {
+      title: 'Split by Text Pattern (Regex)',
+      apply: 'Apply Pattern',
+      placeholder: 'Chapter|Section|Page \\d+|^1\\.\\s',
+      description: 'Creates new section when this pattern is found in page content. Supports Regex.',
+    },
+    // Visual mode
+    visualMode: {
+      selectAll: 'Select All',
+      clear: 'Clear',
+      selected: '{count} pages selected',
+      createGroup: 'Create Section',
+      noSections: 'No sections yet. Select a split method.',
+    },
+    // Groups section
+    groups: {
+      title: 'Sections ({count})',
+      noGroups: 'No sections yet. Select a split method.',
+      unnamedSection: 'Section {count}',
+      allPages: 'All Pages',
+      pageInfo: '{count} pages • ~{size} MB',
+      blankIndicator: '(B)',
+      // Split reasons
+      splitReasons: {
+        manual: 'Manual selection',
+        bookmark: 'Bookmark: {title}',
+        blankPage: 'After blank page (page {page})',
+        pattern: 'Pattern match: page {page}',
+        range: 'Manual range: {range}',
+        unassigned: 'Unassigned pages',
+        lastSection: 'Last section',
+      },
+    },
+    // Messages
+    messages: {
+      fileLoaded: '{count} pages loaded',
+      fileLoadError: 'Error loading PDF',
+      pleaseUploadPdf: 'Please upload only PDF files',
+      selectPagesFirst: 'Select pages first',
+      sectionCreated: '{count} pages added',
+      sectionCreatedTitle: 'Section Created',
+      sectionsCreated: '{count} sections created',
+      splitCompleted: 'Split Completed',
+      smartSplitCompleted: 'Smart Split Completed',
+      smartSplitDesc: '{count} sections detected. Review and confirm.',
+      rangeSplitCompleted: '{count} groups created',
+      patternMatches: '{count} matches found, {count} sections created',
+      blankPagesFound: '{count} blank pages found, {count} sections created',
+      unassignedPages: '{count} pages unassigned, added to "Remaining Pages" group',
+      noValidRanges: 'No valid page ranges found',
+      noPatternMatches: 'Pattern not found on any page',
+      invalidRegex: 'Invalid Regex pattern',
+      noPatternProvided: 'Please enter a pattern',
+      noRangesProvided: 'Please enter page ranges',
+      processingStarted: 'Download started',
+      downloadingFiles: 'Downloading {count} files...',
+      downloadingZip: 'Downloading {count} files as ZIP...',
+      splitError: 'PDF split operation failed',
+    },
+    // Status messages
+    status: {
+      automaticModeActive: 'Automatic split mode active. Configure settings above.',
+      noBookmarksFound: 'No bookmarks found in this PDF',
+      blankPageInstruction: 'Click "Scan and Split" for blank page detection',
+      processing: 'Processing PDF...',
+      pleaseWait: 'Please wait, splitting pages...',
+    },
+    // Privacy
+    privacy: {
+      title: 'Privacy Guarantee',
+      description: 'All operations are performed in your browser',
+      points: [
+        'All operations are performed in your browser',
+        'No files are sent to the server',
+        'PDF bookmark and content analysis is done locally',
+      ],
+      badge: 'Secure: Your files are processed on your device',
+    },
+    // Preview modal
+    preview: {
+      close: 'Close',
+    },
+    // Loading
+    loading: {
+      label: 'Processing PDF...',
+    },
   },
   
   // PDF Compress Page

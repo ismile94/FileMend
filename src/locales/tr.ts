@@ -144,20 +144,146 @@ export const tr = {
   
   // PDF Split Page
   pdfSplit: {
-    title: 'PDF Böl',
-    description: 'PDF dosyanızı birden fazla dosyaya bölün.',
-    addRange: 'Aralık Ekle',
-    removeRange: 'Aralık Kaldır',
-    split: 'Böl',
-    pageRange: 'Sayfa Aralığı',
-    from: 'Başlangıç',
-    to: 'Bitiş',
-    start: 'Başlangıç',
-    end: 'Bitiş',
-    totalPages: 'Toplam {count} sayfa',
-    splitting: 'Bölünüyor...',
-    processing: 'İşleniyor...',
-    splitAndDownload: 'PDF Böl ve İndir',
+    title: 'Gelişmiş PDF Ayırıcı',
+    description: 'PDF dosyanızı 6 farklı yöntemle birden fazla dosyaya bölün.',
+    // Header
+    fileName: '{name} • {count} sayfa',
+    bookmarksFound: '({count} bookmark bulundu)',
+    clear: 'Temizle',
+    download: 'İndir',
+    downloadWithCount: 'İndir ({count})',
+    downloadZip: 'İndir (ZIP)',
+    // Split modes
+    modes: {
+      range: 'Aralık',
+      visual: 'Görsel',
+      everyN: 'Her {count}. Sayfa',
+      bookmarks: 'Bookmark ({count})',
+      size: 'Boyut (~{size}MB)',
+      blankPage: 'Boş Sayfa',
+      pattern: 'Desen',
+    },
+    // Range mode
+    rangeMode: {
+      placeholder: '1-5, 10, 15-20',
+      apply: 'Aralıkları Uygula',
+      description: 'Aralıkları virgülle ayırarak yazın. Örn: 1-5, 10, 15-20',
+    },
+    // Every N mode
+    everyNMode: {
+      every: 'Her',
+      pages: 'sayfada bir böl',
+      apply: 'Uygula',
+    },
+    // Size mode
+    sizeMode: {
+      targetSize: 'Hedef boyut:',
+      mb: 'MB',
+      apply: 'Uygula',
+    },
+    // Bookmark mode
+    bookmarkMode: {
+      title: 'PDF İçindekilerine Göre Bölme',
+      apply: 'Bookmark\'lara Göre Böl',
+      noBookmarks: 'Bu PDF\'de bookmark bulunamadı',
+      preview: 'Bookmark önizlemesi:',
+      moreItems: 'adet daha...',
+    },
+    // Blank page mode
+    blankPageMode: {
+      title: 'Boş Sayfalara Göre Bölme',
+      apply: 'Tara ve Böl',
+      threshold: 'Eşik değeri:',
+      thresholdDesc: 'karakterden az içerik = boş sayfa',
+      instruction: 'Boş sayfaları bölme noktası olarak kullan',
+    },
+    // Pattern mode
+    patternMode: {
+      title: 'Metin Deseni ile Bölme (Regex)',
+      apply: 'Deseni Uygula',
+      placeholder: 'Bölüm|Chapter|Sayfa \\d+|^1\\.\\s',
+      description: 'Sayfa içeriğinde bu deseni bulduğunda yeni bölüm başlatır. Regex destekler.',
+    },
+    // Visual mode
+    visualMode: {
+      selectAll: 'Tümünü Seç',
+      clear: 'Temizle',
+      selected: '{count} sayfa seçili',
+      createGroup: 'Bölüm Oluştur',
+      noSections: 'Henüz bölüm yok. Bir bölme yöntemi seçin.',
+    },
+    // Groups section
+    groups: {
+      title: 'Bölümler ({count})',
+      noGroups: 'Henüz bölüm yok. Bir bölme yöntemi seçin.',
+      unnamedSection: 'Bölüm {count}',
+      allPages: 'Tüm Sayfalar',
+      pageInfo: '{count} sayfa • ~{size} MB',
+      blankIndicator: '(B)',
+      // Split reasons
+      splitReasons: {
+        manual: 'Manuel seçim',
+        bookmark: 'Bookmark: {title}',
+        blankPage: 'Boş sayfa sonrası (sayfa {page})',
+        pattern: 'Desen eşleşmesi: sayfa {page}',
+        range: 'Manuel aralık: {range}',
+        unassigned: 'Atanmamış sayfalar',
+        lastSection: 'Son bölüm',
+      },
+    },
+    // Messages
+    messages: {
+      fileLoaded: '{count} sayfa yüklendi',
+      fileLoadError: 'PDF yüklenirken hata oluştu',
+      pleaseUploadPdf: 'Lütfen sadece PDF dosyası yükleyin',
+      selectPagesFirst: 'Önce sayfa seçin',
+      sectionCreated: '{count} sayfa eklendi',
+      sectionCreatedTitle: 'Oluşturuldu',
+      sectionsCreated: '{count} bölüm oluşturuldu',
+      splitCompleted: 'Tamamlandı',
+      smartSplitCompleted: 'Akıllı Bölme Tamamlandı',
+      smartSplitDesc: '{count} bölüm tespit edildi. İnceleyip onaylayın.',
+      rangeSplitCompleted: '{count} grup oluşturuldu',
+      patternMatches: '{count} eşleşme bulundu, {count} bölüm oluşturuldu',
+      blankPagesFound: '{count} boş sayfa bulundu, {count} bölüm oluşturuldu',
+      unassignedPages: '{count} sayfa atanmadı, "Kalan Sayfalar" grubuna eklendi',
+      noValidRanges: 'Geçerli sayfa aralığı bulunamadı',
+      noPatternMatches: 'Desen hiçbir sayfada bulunamadı',
+      invalidRegex: 'Geçersiz regex deseni',
+      noPatternProvided: 'Lütfen bir desen girin',
+      noRangesProvided: 'Lütfen sayfa aralıkları girin',
+      processingStarted: 'İndirme başladı',
+      downloadingFiles: '{count} dosya indiriliyor...',
+      downloadingZip: '{count} dosya ZIP olarak indiriliyor...',
+      splitError: 'PDF bölme işlemi başarısız',
+    },
+    // Status messages
+    status: {
+      automaticModeActive: 'Otomatik bölme modu aktif. Ayarları yukarıdan yapın.',
+      noBookmarksFound: 'Bu PDF\'de bookmark bulunamadı',
+      blankPageInstruction: 'Boş sayfa tespiti için "Tara ve Böl" butonuna tıklayın',
+      processing: 'PDF işleniyor...',
+      pleaseWait: 'Lütfen bekleyin, sayfalar ayrılıyor...',
+    },
+    // Privacy
+    privacy: {
+      title: 'Gizlilik Garantisi',
+      description: 'Tüm işlemler tarayıcınızda yapılır',
+      points: [
+        'Tüm işlemler tarayıcınızda yapılır',
+        'Sunucuya dosya yüklenmez',
+        'PDF Bookmark ve içerik analizi yerel yapılır',
+      ],
+      badge: 'Güvenli: Dosyalarınız cihazınızda işleniyor',
+    },
+    // Preview modal
+    preview: {
+      close: 'Kapat',
+    },
+    // Loading
+    loading: {
+      label: 'PDF işleniyor...',
+    },
   },
   
   // PDF Compress Page
