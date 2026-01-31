@@ -665,9 +665,38 @@ export const pt = {
 
   
   comments: {
-    title: "Comments",
-    placeholder: "Write a comment"
-  },
+  pdfWorkerConfigured: 'PDF.js worker - espaço em branco corrigido',
+  sortablePageComponent: 'Componente SortablePageItem',
+  sortableFileComponent: 'Componente SortableFileItem',
+  mainPdfEditComponent: 'Componente Principal PDFEdit',
+  gridContainerRef: 'Referência do container da grade',
+  historyState: 'Estado do histórico',
+  modalStates: 'Estados do modal',
+  mobileDragFix: 'Configuração do sensor para corrigir conflito de scroll/drag no mobile',
+  dragScrollPrevention: 'Evitar scroll do body E da grade durante o drag',
+  historySystem: 'Sistema de Histórico / Desfazer',
+  sortingFunctions: 'Funções de Ordenação',
+  highQualityThumbnail: 'Criação de thumbnail de ALTA QUALIDADE - Escala 1.5 (otimizado para Retina)',
+  sharpRendering: 'Para renderização nítida',
+  whiteBackground: 'Tornar áreas transparentes brancas',
+  jpegQualityBalance: 'JPEG 92% de qualidade - equilíbrio tamanho do arquivo/desempenho',
+  headerRedesigned: 'Cabeçalho - Redesenhado',
+  leftGroup: 'Grupo Esquerdo: Título + Desfazer',
+  toolbarRedesigned: 'Barra de ferramentas - Redesenhada',
+  segmentedControl: 'Controle Segmentado - Mais destacado',
+  sortingDropdown: 'Dropdown de Ordenação - Mais destacado',
+  clearButton: 'Limpar - texto no modo arquivo, apenas ícone no modo página',
+  pageModalDesign: 'MODAL DE PÁGINA - Design de botão melhorado',
+  fileModalDesign: 'MODAL DE ARQUIVO - Design de botão melhorado',
+  controlButtons: 'Botões de Controle',
+  controlButtonsLarge: 'Botões de Controle - Maior e mais destacado',
+  rightGroup: 'Grupo Direito: Adicionar PDF + Baixar',
+  mobileOptimized: 'Otimizado para mobile',
+  mobileCompact: 'Mais compacto para mobile',
+  leftGroupModeSelector: 'Grupo Esquerdo: Seletor de Modo + Ordenar + Girar + Limpar',
+  title: "Comentários",
+  placeholder: "Escreva um comentário"
+},
   
   // Language
   language: {
