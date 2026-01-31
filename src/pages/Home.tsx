@@ -20,7 +20,7 @@ import {
   Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -43,7 +43,6 @@ export const Home = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
 
   // Scroll listener for header styling
   useEffect(() => {
