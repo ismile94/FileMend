@@ -14,19 +14,14 @@ import {
   Lock,
   FileEdit,
   ChevronRight,
-  Menu,
-  X,
-  Globe,
-  Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 type ToolCategory = 'pdf' | 'audio' | 'image';
-type Language = 'tr' | 'en' | 'pt';
 
 interface Tool {
   title: string;
@@ -37,20 +32,21 @@ interface Tool {
   category: ToolCategory;
 }
 
+const VALID_CATEGORIES: ToolCategory[] = ['pdf', 'audio', 'image'];
+
 export const Home = () => {
-  const { t, language, setLanguage } = useTranslation();
-  const [activeCategory, setActiveCategory] = useState<ToolCategory>('pdf');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const categoryParam = searchParams.get('category');
+  const initialCategory = (VALID_CATEGORIES.includes(categoryParam as ToolCategory) ? categoryParam : 'pdf') as ToolCategory;
+  const [activeCategory, setActiveCategory] = useState<ToolCategory>(initialCategory);
 
-  // Scroll listener for header styling
+  // URL'deki category değişince sekmeyi güncelle (örn. /?category=audio)
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
+    if (VALID_CATEGORIES.includes(categoryParam as ToolCategory)) {
+      setActiveCategory(categoryParam as ToolCategory);
+    }
+  }, [categoryParam]);
   const allTools: Tool[] = [
     // PDF Tools
     {
@@ -145,12 +141,6 @@ export const Home = () => {
     { id: 'image' as ToolCategory, label: 'Image', icon: Image, color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-200' },
   ];
 
-  const languages = [
-    { code: 'en' as Language, label: 'English', flag: '🇺🇸' },
-    { code: 'tr' as Language, label: 'Türkçe', flag: '🇹🇷' },
-    { code: 'pt' as Language, label: 'Português', flag: '🇵🇹' },
-  ];
-
   const features = [
     {
       icon: Shield,
@@ -170,192 +160,11 @@ export const Home = () => {
   ];
 
   const currentCategory = categories.find(c => c.id === activeCategory)!;
-  const currentLang = languages.find(l => l.code === language) || languages[0];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header - Sticky ve Modern */}
-      <header 
-        className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b",
-          scrolled 
-            ? "bg-background/95 backdrop-blur-md border-border shadow-sm py-3" 
-            : "bg-background border-transparent py-5"
-        )}
-      >
-        <div className="container mx-auto px-4 max-w-6xl">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 group">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-lg font-bold leading-none tracking-tight">FileMend</span>
-              </div>
-            </Link>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                    activeCategory === cat.id
-                      ? `${cat.bg} ${cat.color}`
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  )}
-                >
-                  <cat.icon className="w-4 h-4" />
-                  {cat.label}
-                </button>
-              ))}
-              <div className="w-px h-6 bg-border mx-2" />
-              <Link 
-                to="/about" 
-                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                About
-              </Link>
-            </nav>
-
-            {/* Right Side Actions */}
-            <div className="flex items-center gap-2">
-              {/* Language Selector - Desktop */}
-              <div className="relative hidden sm:block">
-                <button
-                  onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span className="uppercase text-xs font-bold">{currentLang.code}</span>
-                </button>
-                
-                {/* Language Dropdown */}
-                {isLangMenuOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setIsLangMenuOpen(false)} 
-                    />
-                    <div className="absolute right-0 top-full mt-2 w-40 py-1 bg-popover border rounded-lg shadow-lg z-50 animate-in fade-in zoom-in-95 duration-100">
-                      {languages.map((lang) => (
-                        <button
-                          key={lang.code}
-                          onClick={() => {
-                            setLanguage(lang.code);
-                            setIsLangMenuOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-muted transition-colors",
-                            language === lang.code ? "text-foreground font-medium" : "text-muted-foreground"
-                          )}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span>{lang.flag}</span>
-                            <span>{lang.label}</span>
-                          </span>
-                          {language === lang.code && <Check className="w-4 h-4" />}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* CTA Button - Desktop */}
-              <Button asChild size="sm" className="hidden sm:flex">
-                <Link to="/pdf/edit">
-                  Get Started
-                </Link>
-              </Button>
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-              >
-                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-md border-b shadow-lg animate-in slide-in-from-top-2">
-            <div className="container mx-auto px-4 py-4 space-y-4">
-              <nav className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1">Tools</span>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setActiveCategory(cat.id);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors text-left",
-                      activeCategory === cat.id
-                        ? `${cat.bg} ${cat.color}`
-                        : "text-muted-foreground hover:bg-muted"
-                    )}
-                  >
-                    <cat.icon className="w-5 h-5" />
-                    {cat.label} Tools
-                  </button>
-                ))}
-                
-                <div className="h-px bg-border my-2" />
-                
-                <Link 
-                  to="/about" 
-                  className="flex items-center gap-3 px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  About Us
-                </Link>
-              </nav>
-
-              {/* Mobile Language Selector */}
-              <div className="pt-2 border-t">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2 block">Language</span>
-                <div className="flex gap-2 px-3">
-                  {languages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        setLanguage(lang.code);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-all",
-                        language === lang.code
-                          ? "border-primary bg-primary/5 text-foreground"
-                          : "border-border text-muted-foreground hover:border-primary/50"
-                      )}
-                    >
-                      <span>{lang.flag}</span>
-                      <span>{lang.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Button asChild className="w-full mt-2">
-                <Link to="/pdf/edit" onClick={() => setIsMobileMenuOpen(false)}>
-                  Get Started
-                </Link>
-              </Button>
-            </div>
-          </div>
-        )}
-      </header>
-
-      {/* Hero Section - Header yüksekliği kadar boşluk bırak */}
-      <section className="pt-32 pb-12 lg:pt-40 lg:pb-16 border-b bg-gradient-to-b from-muted/30 to-background">
+      {/* Hero Section - Layout Navigation tek header (tüm sayfalarda aynı) */}
+      <section className="pt-16 pb-12 lg:pt-20 lg:pb-16 border-b bg-gradient-to-b from-muted/30 to-background">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             {/* Badge */}

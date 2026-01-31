@@ -21,6 +21,13 @@ export default defineConfig({
     },
     // PDF worker dosyalarını assets olarak işle
     assetsInlineLimit: 0,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'pdf-worker': ['pdfjs-dist/build/pdf.worker.min.js']
+        }
+      }
+    }
   },
   server: {
     host: '0.0.0.0',
