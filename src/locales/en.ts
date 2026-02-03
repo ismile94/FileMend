@@ -13,6 +13,7 @@ export const en = {
     pdfSplit: 'PDF Split',
     pdfCompress: 'PDF Compress',
     pdfRotate: 'PDF Rotate',
+    pdfToWord: 'PDF to Word',
     audioConvert: 'Audio Convert',
     audioTrim: 'Audio Trim',
     audioMerge: 'Audio Merge',
@@ -359,6 +360,19 @@ export const en = {
     statsPlaceholder: '—',
   },
   
+  // PDF to Word Page
+  pdfToWord: {
+    title: 'PDF to Word',
+    description: 'Convert PDF files to editable DOCX (Word) documents. Text is extracted and formatted into a Word document.',
+    onlyPdfFiles: 'Please upload only PDF files.',
+    convertAndDownload: 'Convert and Download DOCX',
+    convertSuccess: 'PDF converted to Word successfully.',
+    convertError: 'PDF to Word conversion failed.',
+    processing: 'Processing...',
+    stageLabel: 'Stage: {stage}',
+    maxSize: 'Max file size: {size} MB',
+  },
+
   // PDF Rotate Page
   pdfRotate: {
     title: 'PDF Rotate',
@@ -539,6 +553,10 @@ export const en = {
       compress: {
         title: 'PDF Compress',
         description: 'Reduce the size of your PDF file.',
+      },
+      toWord: {
+        title: 'PDF to Word',
+        description: 'Convert PDF to editable Word (DOCX) documents.',
       },
     },
     audioTools: {

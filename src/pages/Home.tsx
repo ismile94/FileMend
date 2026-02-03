@@ -14,6 +14,7 @@ import {
   Lock,
   FileEdit,
   ChevronRight,
+  FileType,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -70,6 +71,14 @@ export const Home = () => {
       description: t.home.pdfTools.compress.description,
       icon: Minimize2,
       path: '/pdf/compress',
+      color: 'bg-red-500',
+      category: 'pdf',
+    },
+    {
+      title: t.home.pdfTools.toWord.title,
+      description: t.home.pdfTools.toWord.description,
+      icon: FileType,
+      path: '/pdf/toword',
       color: 'bg-red-500',
       category: 'pdf',
     },

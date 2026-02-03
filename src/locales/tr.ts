@@ -13,6 +13,7 @@ export const tr = {
     pdfSplit: 'PDF Böl',
     pdfCompress: 'PDF Sıkıştır',
     pdfRotate: 'PDF Döndür',
+    pdfToWord: 'PDF\'den Word\'e',
     audioConvert: 'Ses Dönüştür',
     audioTrim: 'Ses Kırp',
     audioMerge: 'Ses Birleştir',
@@ -359,6 +360,19 @@ export const tr = {
     statsPlaceholder: '—',
   },
   
+  // PDF to Word Page
+  pdfToWord: {
+    title: 'PDF\'den Word\'e',
+    description: 'PDF dosyalarını düzenlenebilir DOCX (Word) belgelerine dönüştürün. Metin çıkarılır ve Word belgesine formatlanır.',
+    onlyPdfFiles: 'Lütfen yalnızca PDF dosyası yükleyin.',
+    convertAndDownload: 'Dönüştür ve DOCX İndir',
+    convertSuccess: 'PDF Word\'e başarıyla dönüştürüldü.',
+    convertError: 'PDF\'den Word\'e dönüştürme başarısız.',
+    processing: 'İşleniyor...',
+    stageLabel: 'Aşama: {stage}',
+    maxSize: 'Maksimum dosya boyutu: {size} MB',
+  },
+
   // PDF Rotate Page
   pdfRotate: {
     title: 'PDF Döndür',
@@ -539,6 +553,10 @@ export const tr = {
       compress: {
         title: 'PDF Sıkıştır',
         description: 'PDF dosyanızın boyutunu küçültün.',
+      },
+      toWord: {
+        title: 'PDF\'den Word\'e',
+        description: 'PDF\'yi düzenlenebilir Word (DOCX) belgelerine dönüştürün.',
       },
     },
     audioTools: {
