@@ -57,8 +57,7 @@ export const Navigation = () => {
         { title: t.nav.pdfEdit, path: '/pdf/edit' },
         { title: t.nav.pdfSplit, path: '/pdf/split' },
         { title: t.nav.pdfCompress, path: '/pdf/compress' },
-        { title: t.nav.pdfRotate, path: '/pdf/rotate' },
-        { title: t.nav.pdfToWord, path: '/pdf/toword' },
+        { title: t.nav.pdfToWord, path: '/pdf/to-word' },
       ],
     },
     {

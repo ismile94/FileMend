@@ -1,6 +1,25 @@
-# React + TypeScript + Vite
+# FileMend – React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+---
+
+## PDF to Word – Backend Deployment (Render.com)
+
+1. Create a **New Web Service** on [Render](https://render.com).
+2. Connect your GitHub repository.
+3. Set **Root Directory** to `backend`.
+4. Set **Runtime** to **Docker**.
+5. Choose **Free** plan and deploy.
+6. Note your service URL (e.g. `https://your-app-name.onrender.com`).
+
+### Environment setup
+
+- In the frontend, set `VITE_BACKEND_URL` in `.env.local` (or your build env) to the Render URL, e.g.  
+  `VITE_BACKEND_URL=https://your-app-name.onrender.com`
+- Rebuild and redeploy the frontend (e.g. on Vercel) so the new env is applied.
+
+---
 
 Currently, two official plugins are available:
 

@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+pdfservices-sdk>=4.0.0
+pikepdf

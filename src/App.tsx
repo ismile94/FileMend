@@ -6,7 +6,7 @@ import { PDFEdit } from '@/pages/pdf/PDFEdit';
 import { PDFSplit } from '@/pages/pdf/PDFSplit';
 import { PDFCompress } from '@/pages/pdf/PDFCompress';
 import { PDFRotate } from '@/pages/pdf/PDFRotate';
-import { PDFToWord } from '@/pages/pdf/PDFToWord';
+import { PDFtoWord } from '@/pages/pdf/PDFtoWord';
 import { AudioConvert } from '@/pages/audio/AudioConvert';
 import { AudioTrim } from '@/pages/audio/AudioTrim';
 import { AudioMerge } from '@/pages/audio/AudioMerge';
@@ -29,7 +29,7 @@ function App() {
               <Route path="split" element={<PDFSplit />} />
               <Route path="compress" element={<PDFCompress />} />
               <Route path="rotate" element={<PDFRotate />} />
-              <Route path="toword" element={<PDFToWord />} />
+              <Route path="to-word" element={<PDFtoWord />} />
             </Route>
             <Route path="audio">
               <Route path="convert" element={<AudioConvert />} />

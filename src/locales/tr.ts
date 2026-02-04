@@ -363,14 +363,19 @@ export const tr = {
   // PDF to Word Page
   pdfToWord: {
     title: 'PDF\'den Word\'e',
-    description: 'PDF dosyalarını düzenlenebilir DOCX (Word) belgelerine dönüştürün. Metin çıkarılır ve Word belgesine formatlanır.',
-    onlyPdfFiles: 'Lütfen yalnızca PDF dosyası yükleyin.',
-    convertAndDownload: 'Dönüştür ve DOCX İndir',
-    convertSuccess: 'PDF Word\'e başarıyla dönüştürüldü.',
-    convertError: 'PDF\'den Word\'e dönüştürme başarısız.',
-    processing: 'İşleniyor...',
-    stageLabel: 'Aşama: {stage}',
-    maxSize: 'Maksimum dosya boyutu: {size} MB',
+    description: 'PDF dosyalarınızı düzenlenebilir Word (DOCX) belgelerine dönüştürün.',
+    dropText: 'PDF dosyanızı buraya sürükleyin veya tıklayarak seçin',
+    maxSize: 'En fazla {max} MB',
+    convert: 'Dönüştür',
+    converting: 'Dönüştürülüyor...',
+    analyzing: 'Belge analiz ediliyor...',
+    clear: 'Temizle',
+    successMessage: 'Dönüştürme başarılı. Dosya indirildi.',
+    errors: {
+      notPdf: 'Lütfen yalnızca PDF dosyası yükleyin.',
+      fileTooBig: 'Dosya boyutu {max} MB\'dan büyük olamaz.',
+      convertFailed: 'Dönüştürme başarısız. Lütfen tekrar deneyin.',
+    },
   },
 
   // PDF Rotate Page
@@ -556,7 +561,7 @@ export const tr = {
       },
       toWord: {
         title: 'PDF\'den Word\'e',
-        description: 'PDF\'yi düzenlenebilir Word (DOCX) belgelerine dönüştürün.',
+        description: 'PDF\'i düzenlenebilir Word (DOCX) belgelerine dönüştürün.',
       },
     },
     audioTools: {

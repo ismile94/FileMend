@@ -363,14 +363,19 @@ export const pt = {
   // PDF to Word Page
   pdfToWord: {
     title: 'PDF para Word',
-    description: 'Converta arquivos PDF em documentos DOCX (Word) editáveis. O texto é extraído e formatado em um documento Word.',
-    onlyPdfFiles: 'Por favor, envie apenas arquivos PDF.',
-    convertAndDownload: 'Converter e Baixar DOCX',
-    convertSuccess: 'PDF convertido para Word com sucesso.',
-    convertError: 'Falha na conversão de PDF para Word.',
-    processing: 'Processando...',
-    stageLabel: 'Etapa: {stage}',
-    maxSize: 'Tamanho máximo do arquivo: {size} MB',
+    description: 'Converta seus PDFs em documentos Word (DOCX) editáveis.',
+    dropText: 'Arraste seu PDF aqui ou clique para selecionar',
+    maxSize: 'Máx. {max} MB',
+    convert: 'Converter',
+    converting: 'Convertendo...',
+    analyzing: 'Documento está sendo analisado...',
+    clear: 'Limpar',
+    successMessage: 'Conversão concluída. Arquivo baixado.',
+    errors: {
+      notPdf: 'Envie apenas arquivos PDF.',
+      fileTooBig: 'O tamanho do arquivo não pode exceder {max} MB.',
+      convertFailed: 'Falha na conversão. Tente novamente.',
+    },
   },
 
   // PDF Rotate Page

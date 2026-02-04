@@ -35,5 +35,13 @@ export default defineConfig({
     fs: {
       strict: false,
     },
+    // PDF to Word backend - CORS olmadan aynı origin üzerinden istek
+    proxy: {
+      '/api': {
+        target: 'http://localhost:10000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
 });
