@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Axios: use pre-built ESM to avoid "Could not resolve ./env/data.js" in Vite build
+      axios: path.resolve(__dirname, "node_modules/axios/dist/esm/axios.js"),
     },
   },
   // PDF.js için optimize ayarları
