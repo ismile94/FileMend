@@ -6,7 +6,7 @@ import { PDFEdit } from '@/pages/pdf/PDFEdit';
 import { PDFSplit } from '@/pages/pdf/PDFSplit';
 import { PDFCompress } from '@/pages/pdf/PDFCompress';
 import { PDFRotate } from '@/pages/pdf/PDFRotate';
-import { PDFtoWord } from '@/pages/pdf/PDFtoWord';
+import { PDFtoWord } from '@/pages/pdf/PDFToWord';
 import { AudioConvert } from '@/pages/audio/AudioConvert';
 import { AudioTrim } from '@/pages/audio/AudioTrim';
 import { AudioMerge } from '@/pages/audio/AudioMerge';
