@@ -289,6 +289,14 @@ export const pt = {
   
   // PDF Compress Page
   pdfCompress: {
+    qualityLabel: "Qualidade:",
+    qualityLow: "Baixa",
+    qualityMedium: "Média", 
+    qualityExtreme: "Extrema",
+    qualitySettingsTitle: "Níveis de Qualidade:",
+    qualityLowDesc: "Máxima qualidade, mínima compressão (85% de qualidade para imagens)",
+    qualityMediumDesc: "Qualidade e tamanho de arquivo equilibrados (65% de qualidade para imagens)",
+    qualityExtremeDesc: "Mínima qualidade, máxima compressão (40% de qualidade para imagens)",
     title: 'Comprimir PDF',
     description: 'Compressão automática conforme o arquivo: páginas com texto ficam sem perda, páginas com imagens são comprimidas.',
     compress: 'Comprimir',
