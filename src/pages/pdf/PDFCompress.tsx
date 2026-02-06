@@ -26,18 +26,27 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.vers
 
 
 type AutoCompressionMode = 'lossless' | 'image' | 'hybrid';
+type CompressionQuality = 'low' | 'medium' | 'extreme';
 
 const LOSSLESS_TEXT_RATIO = 0.8;  // Sayfaların %80+ metin ağırlıklı → kayıpsız
 const IMAGE_TEXT_RATIO = 0.2;     // Sayfaların %20- metin ağırlıklı → tamamen görsel sıkıştırma
 
-function getSettingsForMode(mode: AutoCompressionMode): { scale: number; imageQuality: number } {
-  switch (mode) {
-    case 'image':
-      return { scale: 1, imageQuality: 0.5 };
-    case 'hybrid':
-      return { scale: 1, imageQuality: 0.6 };
+function getSettingsForMode(mode: AutoCompressionMode, quality: CompressionQuality): { scale: number; imageQuality: number } {
+  // Lossless modda kalite seviyesi etki etmez
+  if (mode === 'lossless') {
+    return { scale: 1, imageQuality: 0.9 };
+  }
+  
+  // Resimli ve hibrit modlarda kalite seviyesine göre ayarlar
+  switch (quality) {
+    case 'low': // Yüksek kalite, düşük sıkıştırma
+      return { scale: 1, imageQuality: 0.85 };
+    case 'medium': // Dengeli
+      return { scale: 1, imageQuality: 0.65 };
+    case 'extreme': // Düşük kalite, yüksek sıkıştırma
+      return { scale: 1, imageQuality: 0.4 };
     default:
-      return { scale: 1, imageQuality: 0.6 };
+      return { scale: 1, imageQuality: 0.65 };
   }
 }
 
@@ -134,6 +143,7 @@ export const PDFCompress = () => {
   const [files, setFiles] = useState<FileStatus[]>([]);
   const [isCompressingAll, setIsCompressingAll] = useState(false);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [compressionQuality, setCompressionQuality] = useState<CompressionQuality>('medium');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileListInputRef = useRef<HTMLInputElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -205,7 +215,7 @@ export const PDFCompress = () => {
         console.warn(t.pdfCompress.log.analyzeErrorFallback, analyzeError);
         mode = 'lossless';
       }
-      const imageSettings = getSettingsForMode(mode);
+      const imageSettings = getSettingsForMode(mode, compressionQuality);
       const renderErrors = {
         canvasContext: t.pdfCompress.errors.canvasContextMissing,
         toBlob: t.pdfCompress.errors.toBlobFailed,
@@ -446,6 +456,13 @@ export const PDFCompress = () => {
   const filesToCompress = getFilesToCompress();
   const canCompress = filesToCompress.length > 0;
 
+  // Kalite seviyesi etiketleri
+  const qualityLabels = {
+    low: t.pdfCompress?.qualityLow || 'Low',
+    medium: t.pdfCompress?.qualityMedium || 'Medium',
+    extreme: t.pdfCompress?.qualityExtreme || 'Extreme',
+  };
+
   return (
     <div className="container mx-auto px-4 py-6 sm:px-6 sm:py-10 max-w-6xl">
       {/* Header */}
@@ -489,9 +506,33 @@ export const PDFCompress = () => {
         </div>
       )}
 
-      {/* Sıkıştırma nasıl çalışıyor - modal tetikleyici (vurgulu) */}
+      {/* Kalite Seviyesi Seçici ve How it works */}
       {files.length > 0 && (
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-4">
+          {/* Kalite Seçici */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              {t.pdfCompress?.qualityLabel || 'Quality:'}
+            </span>
+            <div className="flex gap-1 bg-muted/30 p-1 rounded-lg">
+              {(['low', 'medium', 'extreme'] as CompressionQuality[]).map((quality) => (
+                <button
+                  key={quality}
+                  onClick={() => setCompressionQuality(quality)}
+                  className={cn(
+                    "px-3 py-1 text-sm font-medium rounded-md transition-all",
+                    compressionQuality === quality
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  {qualityLabels[quality]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* How it works */}
           <Dialog>
             <DialogTrigger asChild>
               <button
@@ -513,6 +554,16 @@ export const PDFCompress = () => {
                   <li>{t.pdfCompress.howItWorksImage}</li>
                   <li>{t.pdfCompress.howItWorksHybrid}</li>
                 </ul>
+                <div className="border-t pt-4 mt-4">
+                  <p className="font-medium text-foreground mb-2">
+                    {t.pdfCompress?.qualitySettingsTitle || 'Kalite Seviyeleri:'}
+                  </p>
+                  <ul className="list-disc list-inside space-y-2 pl-1">
+                    <li><strong>Low:</strong> {t.pdfCompress?.qualityLowDesc || 'En yüksek kalite, en az sıkıştırma (resimler için %85 kalite)'}</li>
+                    <li><strong>Medium:</strong> {t.pdfCompress?.qualityMediumDesc || 'Dengeli kalite ve dosya boyutu (resimler için %65 kalite)'}</li>
+                    <li><strong>Extreme:</strong> {t.pdfCompress?.qualityExtremeDesc || 'En düşük kalite, en yüksek sıkıştırma (resimler için %40 kalite)'}</li>
+                  </ul>
+                </div>
                 <p>{t.pdfCompress.howItWorksEnd}</p>
               </div>
             </DialogContent>
