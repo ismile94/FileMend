@@ -289,6 +289,14 @@ export const tr = {
   
   // PDF Compress Page
   pdfCompress: {
+    qualityLabel: "Quality:",
+    qualityLow: "Low",
+    qualityMedium: "Medium", 
+    qualityExtreme: "Extreme",
+    qualitySettingsTitle: "Kalite Seviyeleri:",
+    qualityLowDesc: "En yüksek kalite, en az sıkıştırma (resimler için %85 kalite)",
+    qualityMediumDesc: "Dengeli kalite ve dosya boyutu (resimler için %65 kalite)",
+    qualityExtremeDesc: "En düşük kalite, en yüksek sıkıştırma (resimler için %40 kalite)",
     title: 'PDF Sıkıştır',
     description: 'Yüklenen dosyaya göre otomatik sıkıştırma: metin ağırlıklı sayfalar kayıpsız, görsel ağırlıklı sayfalar sıkıştırılır.',
     compress: 'Sıkıştır',
