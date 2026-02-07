@@ -1,6 +1,6 @@
 @echo off
-:: Proje klasörüne git
-cd /d C:\Users\Ismail\Desktop\app
+:: Bat dosyasının bulunduğu klasöre (proje kökü) git
+cd /d "%~dp0"
 
 echo --- Git Push Islemi Basliyor ---
 
