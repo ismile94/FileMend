@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { RotateCw, Download, FileText, Redo2, Undo2 } from 'lucide-react';
 import { ProgressBar } from '@/components/ProgressBar';
 import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';

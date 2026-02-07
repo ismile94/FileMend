@@ -22,7 +22,6 @@ import {
   SortDesc,
   RotateCcw
 } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
