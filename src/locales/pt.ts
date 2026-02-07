@@ -292,19 +292,11 @@ export const pt = {
     qualityLabel: "Qualidade:",
     qualityLow: "Baixa",
     qualityMedium: "Média", 
-<<<<<<< HEAD
-    qualityExtreme: "Extrema",
-    qualitySettingsTitle: "Níveis de Qualidade:",
-    qualityLowDesc: "Máxima qualidade, mínima compressão (85% de qualidade para imagens)",
-    qualityMediumDesc: "Qualidade e tamanho de arquivo equilibrados (65% de qualidade para imagens)",
-    qualityExtremeDesc: "Mínima qualidade, máxima compressão (40% de qualidade para imagens)",
-=======
     qualityExtreme: "Alta",
     qualitySettingsTitle: "Níveis de Qualidade:",
     qualityLowDesc: "Qualidade mais alta, menos compressão (85% de qualidade para imagens)",
     qualityMediumDesc: "Qualidade equilibrada e tamanho do arquivo (65% de qualidade para imagens)",
     qualityExtremeDesc: "Qualidade mais baixa, mais compressão (40% de qualidade para imagens)",
->>>>>>> a696f14d (bomba geliyor)
     title: 'Comprimir PDF',
     description: 'Compressão automática conforme o arquivo: páginas com texto ficam sem perda, páginas com imagens são comprimidas.',
     compress: 'Comprimir',
