@@ -61,8 +61,6 @@ function getSettingsForLevel(level: CompressionLevel): {
         minCompressionPercent: 10,
         description: 'Maksimum sıkıştırma'
       };
-    default:
-      return { scale: 1, imageQuality: 0.65, textThreshold: 0.10, minCompressionPercent: 5, description: 'Dengeli' };
   }
 }
 
@@ -207,6 +205,7 @@ export const PDFCompress = () => {
       const bufferForPdfLib = arrayBuffer.slice(0);
 
       setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 5 } : f)));
+
       const renderErrors = {
         canvasContext: t.pdfCompress.errors.canvasContextMissing,
         toBlob: t.pdfCompress.errors.toBlobFailed,
@@ -456,13 +455,6 @@ export const PDFCompress = () => {
   const filesToCompress = getFilesToCompress();
   const canCompress = filesToCompress.length > 0;
   const currentSettings = getSettingsForLevel(compressionLevel);
-
-  // Kalite seviyesi etiketleri
-  const qualityLabels = {
-    low: t.pdfCompress?.qualityLow || 'Low',
-    medium: t.pdfCompress?.qualityMedium || 'Medium',
-    extreme: t.pdfCompress?.qualityExtreme || 'Extreme',
-  };
 
   return (
     <PDFPageLayout
