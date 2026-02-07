@@ -17,6 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import { formatFileSize } from '@/utils/fileHelpers';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
@@ -24,64 +26,60 @@ import { saveAs } from 'file-saver';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
+type CompressionLevel = 'low' | 'medium' | 'extreme';
 
-type AutoCompressionMode = 'lossless' | 'image' | 'hybrid';
-type CompressionQuality = 'low' | 'medium' | 'extreme';
-
-const LOSSLESS_TEXT_RATIO = 0.8;  // Sayfaların %80+ metin ağırlıklı → kayıpsız
-const IMAGE_TEXT_RATIO = 0.2;     // Sayfaların %20- metin ağırlıklı → tamamen görsel sıkıştırma
-
-function getSettingsForMode(mode: AutoCompressionMode, quality: CompressionQuality): { scale: number; imageQuality: number } {
-  // Lossless modda kalite seviyesi etki etmez
-  if (mode === 'lossless') {
-    return { scale: 1, imageQuality: 0.9 };
-  }
-  
-  // Resimli ve hibrit modlarda kalite seviyesine göre ayarlar
-  switch (quality) {
-    case 'low': // Yüksek kalite, düşük sıkıştırma
-      return { scale: 1, imageQuality: 0.85 };
-    case 'medium': // Dengeli
-      return { scale: 1, imageQuality: 0.65 };
-    case 'extreme': // Düşük kalite, yüksek sıkıştırma
-      return { scale: 1, imageQuality: 0.4 };
+// Her seviye için optimize parametreler
+function getSettingsForLevel(level: CompressionLevel): { 
+  scale: number; 
+  imageQuality: number; 
+  textThreshold: number;
+  minCompressionPercent: number; // Minimum kazanç oranı
+  description: string;
+} {
+  switch (level) {
+    case 'low':
+      return { 
+        scale: 1, 
+        imageQuality: 0.85,
+        textThreshold: 0.05, // Daha agresif: az metin bile olsa kopyala
+        minCompressionPercent: 3, // En az %3 küçülme olmalı
+        description: 'En yüksek kalite, en az sıkıştırma'
+      };
+    case 'medium':
+      return { 
+        scale: 1, 
+        imageQuality: 0.65,
+        textThreshold: 0.10,
+        minCompressionPercent: 5,
+        description: 'Dengeli kalite ve boyut'
+      };
+    case 'extreme':
+      return { 
+        scale: 0.85, 
+        imageQuality: 0.45,
+        textThreshold: 0.20, // Daha az sayfa text-heavy sayılır
+        minCompressionPercent: 10,
+        description: 'Maksimum sıkıştırma'
+      };
     default:
-      return { scale: 1, imageQuality: 0.65 };
+      return { scale: 1, imageQuality: 0.65, textThreshold: 0.10, minCompressionPercent: 5, description: 'Dengeli' };
   }
-}
-
-/** PDF'i analiz eder; sayfa sayfa metin oranına göre lossless / image / hybrid modunu döner */
-async function analyzePdfMode(arrayBuffer: ArrayBuffer): Promise<AutoCompressionMode> {
-  const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const numPages = pdfJsDoc.numPages;
-  if (numPages === 0) return 'lossless';
-
-  let textHeavyCount = 0;
-  for (let i = 1; i <= numPages; i++) {
-    const page = await pdfJsDoc.getPage(i);
-    if (await isPageTextHeavy(page)) textHeavyCount++;
-  }
-  const textRatio = textHeavyCount / numPages;
-  if (textRatio >= LOSSLESS_TEXT_RATIO) return 'lossless';
-  if (textRatio <= IMAGE_TEXT_RATIO) return 'image';
-  return 'hybrid';
 }
 
 /**
- * Sayfanın metin ağırlıklı mı yoksa görsel ağırlıklı mı olduğunu tahmin eder (getTextContent alanına göre).
- * Karar sayfa bütünüyle verilir: hem yazı hem resim olan sayfada, metin alanı yeterince büyükse
- * sayfa kayıpsız kopyalanır (yazı seçilebilir kalır, sayfadaki resimler olduğu gibi kalır);
- * metin oranı düşükse sayfa tek görsel olarak sıkıştırılır (yazı seçilemez).
+ * Sayfanın metin ağırlıklı mı yoksa görsel ağırlıklı mı olduğunu tahmin eder.
  */
-const TEXT_AREA_RATIO_THRESHOLD = 0.15; // Sayfa alanının %15'inden fazlası metin → metin sayfası (kayıpsız kopyala)
-
-async function isPageTextHeavy(page: pdfjsLib.PDFPageProxy): Promise<boolean> {
+async function isPageTextHeavy(
+  page: pdfjsLib.PDFPageProxy, 
+  textThreshold: number
+): Promise<boolean> {
   const viewport = page.getViewport({ scale: 1 });
   const pageArea = viewport.width * viewport.height;
   if (pageArea <= 0) return true;
 
   const textContent = await page.getTextContent();
   let textArea = 0;
+  
   for (const item of textContent.items) {
     if ('str' in item && typeof (item as { width?: number; height?: number }).width === 'number' && typeof (item as { width?: number; height?: number }).height === 'number') {
       const w = (item as { width: number; height: number }).width;
@@ -89,8 +87,9 @@ async function isPageTextHeavy(page: pdfjsLib.PDFPageProxy): Promise<boolean> {
       textArea += w * h;
     }
   }
+  
   const ratio = textArea / pageArea;
-  return ratio >= TEXT_AREA_RATIO_THRESHOLD;
+  return ratio >= textThreshold;
 }
 
 /** Sayfayı canvas'a çizip JPEG blob döner */
@@ -133,7 +132,8 @@ interface FileStatus {
   isProcessing: boolean;
   error?: string;
   progress?: number;
-  compressionModeUsed?: AutoCompressionMode;
+  compressionLevel?: CompressionLevel;
+  wasAlreadyOptimized?: boolean; // Zaten optimize mi?
 }
 
 export const PDFCompress = () => {
@@ -143,11 +143,11 @@ export const PDFCompress = () => {
   const [files, setFiles] = useState<FileStatus[]>([]);
   const [isCompressingAll, setIsCompressingAll] = useState(false);
   const [overallProgress, setOverallProgress] = useState(0);
-  const [compressionQuality, setCompressionQuality] = useState<CompressionQuality>('medium');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [compressionLevel, setCompressionLevel] = useState<CompressionLevel>('medium');
   const fileListInputRef = useRef<HTMLInputElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [rememberDeleteChoice, setRememberDeleteChoice] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const getFilesToCompress = useCallback(() => {
     return files.filter(f => !f.isProcessing && !f.compressedBlob);
@@ -190,9 +190,12 @@ export const PDFCompress = () => {
     setFiles(prev => [...prev, ...newFiles]);
   }, [files, toast, t.messages.error, t.messages.pleaseUpload, t.messages.pdfFile, t.messages.success, t.pdfCompress.duplicateSkipped]);
 
-  const compressSingleFile = async (fileId: string) => {
+  const compressSingleFile = async (fileId: string, level?: CompressionLevel) => {
     const fileStatus = files.find(f => f.id === fileId);
     if (!fileStatus) return;
+
+    const currentLevel = level || compressionLevel;
+    const settings = getSettingsForLevel(currentLevel);
 
     setFiles(prev => prev.map(f =>
       f.id === fileId ? { ...f, isProcessing: true, error: undefined, progress: 0 } : f
@@ -200,76 +203,43 @@ export const PDFCompress = () => {
 
     try {
       const arrayBuffer = await fileStatus.file.arrayBuffer();
-      // pdfjs-dist ArrayBuffer'ı worker'a transfer edebilir ve detach eder.
-      // Aynı buffer pdf-lib'e verilirse "detached ArrayBuffer" hatası olur.
-      // Her kütüphane için bağımsız kopya kullan (slice yeni buffer oluşturur).
-      const bufferForAnalyze = arrayBuffer.slice(0);
       const bufferForPdfJs = arrayBuffer.slice(0);
       const bufferForPdfLib = arrayBuffer.slice(0);
 
       setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 5 } : f)));
-      let mode: AutoCompressionMode;
-      try {
-        mode = await analyzePdfMode(bufferForAnalyze);
-      } catch (analyzeError) {
-        console.warn(t.pdfCompress.log.analyzeErrorFallback, analyzeError);
-        mode = 'lossless';
-      }
-      const imageSettings = getSettingsForMode(mode, compressionQuality);
       const renderErrors = {
         canvasContext: t.pdfCompress.errors.canvasContextMissing,
         toBlob: t.pdfCompress.errors.toBlobFailed,
       };
 
-      let compressedBlob: Blob;
+      // Hybrid yaklaşım: Her sayfayı analiz et
+      const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferForPdfJs }).promise;
+      const sourcePdf = await PDFDocument.load(bufferForPdfLib);
+      const numPages = pdfJsDoc.numPages;
+      const outPdf = await PDFDocument.create();
 
-      if (mode === 'hybrid') {
-        const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferForPdfJs }).promise;
-        const sourcePdf = await PDFDocument.load(bufferForPdfLib);
-        const numPages = pdfJsDoc.numPages;
-        const outPdf = await PDFDocument.create();
+      let textHeavyCount = 0;
+      let imageHeavyCount = 0;
 
-        for (let i = 0; i < numPages; i++) {
-          const pct = 5 + Math.round(((i + 1) / numPages) * 90);
-          setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: pct } : f)));
+      for (let i = 0; i < numPages; i++) {
+        const pct = 5 + Math.round(((i + 1) / numPages) * 90);
+        setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: pct } : f)));
 
-          const page = await pdfJsDoc.getPage(i + 1);
-          const textHeavy = await isPageTextHeavy(page);
+        const page = await pdfJsDoc.getPage(i + 1);
+        const textHeavy = await isPageTextHeavy(page, settings.textThreshold);
 
-          if (textHeavy) {
-            const [copiedPage] = await outPdf.copyPages(sourcePdf, [i]);
-            outPdf.addPage(copiedPage);
-          } else {
-            const { blob, widthPt, heightPt } = await renderPageToJpeg(
-              page,
-              imageSettings.scale,
-              imageSettings.imageQuality,
-              renderErrors
-            );
-            const jpegBytes = await blob.arrayBuffer();
-            const image = await outPdf.embedJpg(jpegBytes);
-            const pdfPage = outPdf.addPage([widthPt, heightPt]);
-            pdfPage.drawImage(image, { x: 0, y: 0, width: widthPt, height: heightPt });
-          }
-        }
-
-        setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 100 } : f)));
-        const pdfBytes = await outPdf.save({ useObjectStreams: true });
-        compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
-      } else if (mode === 'image') {
-        const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferForPdfJs }).promise;
-        const numPages = pdfJsDoc.numPages;
-        const outPdf = await PDFDocument.create();
-
-        for (let i = 1; i <= numPages; i++) {
-          const pct = 5 + Math.round((i / numPages) * 90);
-          setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: pct } : f)));
-
-          const page = await pdfJsDoc.getPage(i);
+        if (textHeavy) {
+          // Text ağırlıklı sayfa: Lossless kopyala
+          textHeavyCount++;
+          const [copiedPage] = await outPdf.copyPages(sourcePdf, [i]);
+          outPdf.addPage(copiedPage);
+        } else {
+          // Görsel ağırlıklı sayfa: JPEG'e çevir
+          imageHeavyCount++;
           const { blob, widthPt, heightPt } = await renderPageToJpeg(
             page,
-            imageSettings.scale,
-            imageSettings.imageQuality,
+            settings.scale,
+            settings.imageQuality,
             renderErrors
           );
           const jpegBytes = await blob.arrayBuffer();
@@ -277,47 +247,67 @@ export const PDFCompress = () => {
           const pdfPage = outPdf.addPage([widthPt, heightPt]);
           pdfPage.drawImage(image, { x: 0, y: 0, width: widthPt, height: heightPt });
         }
-
-        setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 100 } : f)));
-        const pdfBytes = await outPdf.save({ useObjectStreams: true });
-        compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
-      } else {
-        const pdfDoc = await PDFDocument.load(bufferForPdfLib);
-        setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 50 } : f)));
-
-        const pdfBytes = await pdfDoc.save({
-          updateFieldAppearances: false,
-          useObjectStreams: true,
-        });
-        setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 100 } : f)));
-        compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       }
 
+      setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 95 } : f)));
+      
+      // PDF'i kaydet
+      const pdfBytes = await outPdf.save({ 
+        useObjectStreams: false, // Daha küçük dosya için
+        addDefaultPage: false,
+        objectsPerTick: 50,
+      });
+      
+      const compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       const compressedSize = compressedBlob.size;
       const compressionRatio = ((fileStatus.originalSize - compressedSize) / fileStatus.originalSize) * 100;
+
+      // KONTROL: Eğer dosya büyüdü veya çok az küçüldüyse, orijinali kullan
+      let finalBlob = compressedBlob;
+      let finalSize = compressedSize;
+      let finalRatio = compressionRatio;
+      let wasAlreadyOptimized = false;
+
+      if (compressionRatio < settings.minCompressionPercent) {
+        // Yeterli küçülme yok, orijinali kullan
+        finalBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+        finalSize = fileStatus.originalSize;
+        finalRatio = 0;
+        wasAlreadyOptimized = true;
+      }
 
       setFiles(prev => prev.map(f =>
         f.id === fileId
           ? {
               ...f,
-              compressedBlob,
-              compressedSize,
-              compressionRatio,
+              compressedBlob: finalBlob,
+              compressedSize: finalSize,
+              compressionRatio: finalRatio,
               isProcessing: false,
               progress: 100,
-              compressionModeUsed: mode,
+              compressionLevel: currentLevel,
+              wasAlreadyOptimized,
             }
           : f
       ));
 
-      const modeLabel = mode === 'lossless' ? t.pdfCompress.lossless : mode === 'image' ? t.pdfCompress.image : t.pdfCompress.hybrid;
-      toast({
-        title: t.messages.success,
-        description: t.pdfCompress.successCompressed
-          .replace('{name}', fileStatus.file.name)
-          .replace('%{ratio}%', String(Math.round(compressionRatio)))
-          .replace('{mode}', modeLabel),
-      });
+      // Bilgilendirme mesajı
+      if (wasAlreadyOptimized) {
+        toast({
+          title: 'Bilgi',
+          description: `${fileStatus.file.name} zaten optimize edilmiş. Orijinal dosya korundu.`,
+        });
+      } else {
+        const levelLabel = currentLevel === 'low' ? 'Düşük' : currentLevel === 'medium' ? 'Orta' : 'Yüksek';
+        const modeInfo = imageHeavyCount > 0 
+          ? `${textHeavyCount} sayfa korundu, ${imageHeavyCount} sayfa sıkıştırıldı`
+          : 'Metin sayfaları optimize edildi';
+        
+        toast({
+          title: t.messages.success,
+          description: `${fileStatus.file.name} - %${Math.round(compressionRatio)} küçültme (${levelLabel} - ${modeInfo})`,
+        });
+      }
     } catch (error) {
       console.error(t.pdfCompress.log.compressionError, error);
       setFiles(prev => prev.map(f =>
@@ -351,7 +341,7 @@ export const PDFCompress = () => {
     setOverallProgress(0);
 
     for (let i = 0; i < filesToCompress.length; i++) {
-      await compressSingleFile(filesToCompress[i].id);
+      await compressSingleFile(filesToCompress[i].id, compressionLevel);
       setOverallProgress(Math.round(((i + 1) / filesToCompress.length) * 100));
     }
 
@@ -386,7 +376,13 @@ export const PDFCompress = () => {
     const url = URL.createObjectURL(fileStatus.compressedBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`;
+    
+    // Eğer zaten optimize edilmişse orijinal ismi kullan
+    const filename = fileStatus.wasAlreadyOptimized 
+      ? fileStatus.file.name 
+      : `${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`;
+    
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -414,7 +410,10 @@ export const PDFCompress = () => {
       const zip = new JSZip();
       
       compressedFiles.forEach(fileStatus => {
-        zip.file(`${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`, fileStatus.compressedBlob!);
+        const filename = fileStatus.wasAlreadyOptimized 
+          ? fileStatus.file.name 
+          : `${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`;
+        zip.file(filename, fileStatus.compressedBlob!);
       });
       
       const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -439,8 +438,8 @@ export const PDFCompress = () => {
     const totalOriginal = files.reduce((sum, f) => sum + f.originalSize, 0);
     const totalCompressed = files.reduce((sum, f) => sum + (f.compressedSize || 0), 0);
     const totalSaved = totalOriginal - totalCompressed;
-    const avgCompression = files.filter(f => f.compressionRatio !== undefined)
-      .reduce((sum, f) => sum + f.compressionRatio!, 0) / files.filter(f => f.compressionRatio !== undefined).length || 0;
+    const avgCompression = files.filter(f => f.compressionRatio !== undefined && f.compressionRatio > 0)
+      .reduce((sum, f) => sum + f.compressionRatio!, 0) / files.filter(f => f.compressionRatio !== undefined && f.compressionRatio > 0).length || 0;
     
     return {
       totalOriginal,
@@ -449,12 +448,14 @@ export const PDFCompress = () => {
       avgCompression: avgCompression || 0,
       fileCount: files.length,
       compressedCount: files.filter(f => f.compressedBlob).length,
+      alreadyOptimizedCount: files.filter(f => f.wasAlreadyOptimized).length,
     };
   };
 
   const stats = getStats();
   const filesToCompress = getFilesToCompress();
   const canCompress = filesToCompress.length > 0;
+  const currentSettings = getSettingsForLevel(compressionLevel);
 
   // Kalite seviyesi etiketleri
   const qualityLabels = {
@@ -464,20 +465,13 @@ export const PDFCompress = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 sm:px-6 sm:py-10 max-w-6xl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl sm:text-4xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-red-500 rounded-lg shadow-lg shadow-red-200">
-            <Minimize2 className="w-6 h-6 text-white" />
-          </div>
-          {t.pdfCompress.title}
-        </h1>
-        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-          {t.pdfCompress.description}
-        </p>
-      </div>
-
+    <PDFPageLayout
+      title={t.pdfCompress.title}
+      description={t.pdfCompress.description}
+      icon={Minimize2}
+      maxWidth="max-w-6xl"
+      centerHeader={false}
+    >
       {/* Stats Cards */}
       {files.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -494,7 +488,7 @@ export const PDFCompress = () => {
             </div>
           </Card>
           <Card className="p-2 min-w-0">
-            <div className="text-sm font-bold text-orange-600">{stats.compressedCount > 0 ? formatFileSize(stats.totalSaved) : t.pdfCompress.statsZeroSize}</div>
+            <div className="text-sm font-bold text-sky-600">{stats.compressedCount > 0 ? formatFileSize(stats.totalSaved) : t.pdfCompress.statsZeroSize}</div>
             <div className="text-xs text-muted-foreground">{stats.compressedCount > 0 ? (<>{formatFileSize(stats.totalOriginal)} → <span className="text-green-600">{formatFileSize(stats.totalCompressed)}</span></>) : t.pdfCompress.statsPlaceholder}</div>
           </Card>
           <Card className="p-2 min-w-0">
@@ -506,65 +500,97 @@ export const PDFCompress = () => {
         </div>
       )}
 
-      {/* Kalite Seviyesi Seçici ve How it works */}
+      {/* Compression Level Selection + How it Works */}
       {files.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-4">
-          {/* Kalite Seçici */}
+        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* Compression Level Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              {t.pdfCompress?.qualityLabel || 'Quality:'}
-            </span>
-            <div className="flex gap-1 bg-muted/30 p-1 rounded-lg">
-              {(['low', 'medium', 'extreme'] as CompressionQuality[]).map((quality) => (
-                <button
-                  key={quality}
-                  onClick={() => setCompressionQuality(quality)}
-                  className={cn(
-                    "px-3 py-1 text-sm font-medium rounded-md transition-all",
-                    compressionQuality === quality
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  )}
-                >
-                  {qualityLabels[quality]}
-                </button>
-              ))}
+            <span className="text-sm font-medium text-muted-foreground">Sıkıştırma Seviyesi:</span>
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setCompressionLevel('low')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-all",
+                  compressionLevel === 'low'
+                    ? "bg-white dark:bg-gray-800 shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Düşük
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompressionLevel('medium')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-all",
+                  compressionLevel === 'medium'
+                    ? "bg-white dark:bg-gray-800 shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Orta
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompressionLevel('extreme')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-all",
+                  compressionLevel === 'extreme'
+                    ? "bg-white dark:bg-gray-800 shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Yüksek
+              </button>
             </div>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              ({currentSettings.description})
+            </span>
           </div>
 
-          {/* How it works */}
+          {/* How it Works */}
           <Dialog>
             <DialogTrigger asChild>
               <button
                 type="button"
-                className="text-sm font-semibold text-primary hover:underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1"
+                className="text-sm font-semibold text-sky-600 hover:underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 rounded px-1"
               >
                 {t.pdfCompress.howItWorks}
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{t.pdfCompress.howItWorksModalTitle}</DialogTitle>
+                <DialogTitle>Sıkıştırma Nasıl Çalışır?</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 text-sm text-muted-foreground">
-                <p>{t.pdfCompress.howItWorksIntro}</p>
-                <p className="font-medium text-foreground">{t.pdfCompress.howItWorksWhen}</p>
-                <ul className="list-disc list-inside space-y-2 pl-1">
-                  <li>{t.pdfCompress.howItWorksLossless}</li>
-                  <li>{t.pdfCompress.howItWorksImage}</li>
-                  <li>{t.pdfCompress.howItWorksHybrid}</li>
-                </ul>
-                <div className="border-t pt-4 mt-4">
-                  <p className="font-medium text-foreground mb-2">
-                    {t.pdfCompress?.qualitySettingsTitle || 'Kalite Seviyeleri:'}
-                  </p>
-                  <ul className="list-disc list-inside space-y-2 pl-1">
-                    <li><strong>Low:</strong> {t.pdfCompress?.qualityLowDesc || 'En yüksek kalite, en az sıkıştırma (resimler için %85 kalite)'}</li>
-                    <li><strong>Medium:</strong> {t.pdfCompress?.qualityMediumDesc || 'Dengeli kalite ve dosya boyutu (resimler için %65 kalite)'}</li>
-                    <li><strong>Extreme:</strong> {t.pdfCompress?.qualityExtremeDesc || 'En düşük kalite, en yüksek sıkıştırma (resimler için %40 kalite)'}</li>
-                  </ul>
+                <p>
+                  PDF'leriniz sayfa sayfa analiz edilir ve her sayfa içeriğine göre en uygun yöntem uygulanır.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">📝 Metin Ağırlıklı Sayfalar</p>
+                    <p className="text-xs">
+                      Seçilebilir yazılar, tablolar içeren sayfalar <strong>kayıpsız</strong> kopyalanır. 
+                      Yazılar seçilebilir kalır.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">🖼️ Görsel Ağırlıklı Sayfalar</p>
+                    <p className="text-xs">
+                      Resim ve grafikler içeren sayfalar seçilen seviyeye göre sıkıştırılır:
+                    </p>
+                    <ul className="list-disc list-inside text-xs mt-1 ml-2 space-y-0.5">
+                      <li><strong>Düşük:</strong> %85 kalite - En yüksek görsel kalite</li>
+                      <li><strong>Orta:</strong> %65 kalite - Dengeli</li>
+                      <li><strong>Yüksek:</strong> %45 kalite - Maksimum sıkıştırma</li>
+                    </ul>
+                  </div>
                 </div>
-                <p>{t.pdfCompress.howItWorksEnd}</p>
+                <p className="text-xs bg-sky-50 dark:bg-sky-950/20 p-2 rounded border border-sky-200 dark:border-sky-900">
+                  <strong>⚠️ Önemli:</strong> Eğer sıkıştırma sonrası dosya büyürse veya çok az küçülürse, 
+                  orijinal dosya otomatik olarak korunur.
+                </p>
               </div>
             </DialogContent>
           </Dialog>
@@ -586,29 +612,23 @@ export const PDFCompress = () => {
 
       {/* File Dropzone */}
       {files.length === 0 && (
-        <div className="relative border-2 rounded-xl p-8 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-4 min-h-[200px] hover:border-muted-foreground/50 hover:bg-muted/50 border-solid border-primary/50 bg-primary/5"
-             onDrop={(e) => {
-               e.preventDefault();
-               const files = e.dataTransfer.files;
-               if (files.length > 0) handleFilesDrop(files);
-             }}
-             onDragOver={(e) => e.preventDefault()}
-             onClick={() => fileInputRef.current?.click()}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            multiple
-            className="hidden"
-            onChange={(e) => e.target.files && handleFilesDrop(e.target.files)}
-          />
-          <Plus className="w-12 h-12 text-muted-foreground" />
-          <div className="text-center">
-            <p className="text-lg font-medium">{t.pdfCompress.dropOrSelect}</p>
-            <p className="text-sm text-muted-foreground mt-1">{t.pdfCompress.multipleSupported}</p>
-          </div>
-        </div>
+        <PDFDropzone
+          inputId="pdf-compress-input"
+          dropText={t.pdfCompress.dropOrSelect}
+          dropSubtext={t.pdfCompress.multipleSupported}
+          isDragOver={isDragOver}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const fileList = e.dataTransfer.files;
+            if (fileList.length > 0) handleFilesDrop(fileList);
+          }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+          onFileInput={(e) => e.target.files && handleFilesDrop(e.target.files)}
+          accept=".pdf"
+          multiple
+        />
       )}
 
       {/* Files List */}
@@ -621,7 +641,7 @@ export const PDFCompress = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => fileListInputRef.current?.click()}
-                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                className="text-sky-600 border-sky-200 hover:bg-sky-50"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 <span className="hidden sm:inline">{t.pdfCompress.addFile}</span>
@@ -637,7 +657,7 @@ export const PDFCompress = () => {
               <Button 
                 onClick={compressAllFiles}
                 disabled={!canCompress || isCompressingAll}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 size="sm"
               >
                 <Minimize2 className="w-4 h-4 sm:mr-1" />
@@ -661,22 +681,25 @@ export const PDFCompress = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {files.map(({ file, id, compressedBlob, originalSize, compressedSize, compressionRatio, isProcessing, error, progress, compressionModeUsed }) => (
+            {files.map(({ file, id, compressedBlob, originalSize, compressedSize, compressionRatio, isProcessing, error, progress, compressionLevel: fileLevel, wasAlreadyOptimized }) => (
                 <Card key={id} className={cn(
                   "overflow-hidden transition-all duration-200 hover:shadow-lg",
                   isProcessing && "ring-2 ring-blue-200",
                   error && "ring-2 ring-red-200",
-                  compressedBlob && "ring-2 ring-green-200"
+                  compressedBlob && !wasAlreadyOptimized && "ring-2 ring-green-200",
+                  wasAlreadyOptimized && "ring-2 ring-amber-200"
                 )}>
                   <CardContent className="p-3">
                     <div className="flex items-start gap-2">
                       <div className={cn(
                         "p-1.5 rounded-lg shrink-0",
-                        compressedBlob ? "bg-green-50" : "bg-red-50"
+                        compressedBlob && !wasAlreadyOptimized ? "bg-green-50" : 
+                        wasAlreadyOptimized ? "bg-amber-50" : "bg-red-50"
                       )}>
                         <FileText className={cn(
                           "w-5 h-5",
-                          compressedBlob ? "text-green-600" : "text-red-500"
+                          compressedBlob && !wasAlreadyOptimized ? "text-green-600" : 
+                          wasAlreadyOptimized ? "text-amber-600" : "text-red-500"
                         )} />
                       </div>
                       
@@ -720,13 +743,25 @@ export const PDFCompress = () => {
                           {compressedSize && (
                             <>
                               <span className="text-slate-300">→</span>
-                              <span className="text-green-600 font-medium">{formatFileSize(compressedSize)}</span>
-                              <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1 py-0.5 rounded-full">
-                                -{Math.round(compressionRatio || 0)}%
+                              <span className={cn(
+                                "font-medium",
+                                wasAlreadyOptimized ? "text-amber-600" : "text-green-600"
+                              )}>
+                                {formatFileSize(compressedSize)}
                               </span>
-                              {compressionModeUsed && (
+                              {!wasAlreadyOptimized && compressionRatio !== undefined && compressionRatio > 0 && (
+                                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1 py-0.5 rounded-full">
+                                  -{Math.round(compressionRatio)}%
+                                </span>
+                              )}
+                              {wasAlreadyOptimized && (
+                                <span className="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1 py-0.5 rounded-full">
+                                  Optimize
+                                </span>
+                              )}
+                              {fileLevel && !wasAlreadyOptimized && (
                                 <span className="text-xs text-muted-foreground">
-                                  · {compressionModeUsed === 'lossless' ? t.pdfCompress.lossless : compressionModeUsed === 'image' ? t.pdfCompress.image : t.pdfCompress.hybrid}
+                                  · {fileLevel === 'low' ? 'Düşük' : fileLevel === 'medium' ? 'Orta' : 'Yüksek'}
                                 </span>
                               )}
                             </>
@@ -737,7 +772,7 @@ export const PDFCompress = () => {
                         {isProcessing && (
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-blue-600">{t.pdfCompress.compressing}</span>
+                              <span className="text-sky-600">{t.pdfCompress.compressing}</span>
                               <span className="text-muted-foreground">{progress || 0}%</span>
                             </div>
                             <ProgressBar progress={progress || 0} className="h-1" />
@@ -753,10 +788,18 @@ export const PDFCompress = () => {
                         )}
 
                         {/* Success */}
-                        {compressedBlob && !isProcessing && (
+                        {compressedBlob && !isProcessing && !wasAlreadyOptimized && (
                           <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-950/20 p-1.5 rounded">
                             <CheckCircle className="w-3 h-3" />
                             {t.pdfCompress.successCompressedShort}
+                          </div>
+                        )}
+
+                        {/* Already Optimized */}
+                        {wasAlreadyOptimized && (
+                          <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded">
+                            <AlertCircle className="w-3 h-3" />
+                            Dosya zaten optimize
                           </div>
                         )}
                       </div>
@@ -807,7 +850,7 @@ export const PDFCompress = () => {
             </div>
           </div>
         </div>
-      )}  
-    </div>
+      )}
+    </PDFPageLayout>
   );
 };

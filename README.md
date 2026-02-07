@@ -4,20 +4,33 @@ This template provides a minimal setup to get React working in Vite with HMR and
 
 ---
 
-## PDF to Word – Backend Deployment (Render.com)
+## Vercel Deployment (Frontend)
+
+1. GitHub'a push edin; Vercel otomatik deploy eder.
+2. **Önemli:** Vercel proje ayarlarında **Environment Variables** ekleyin:
+   - `VITE_API_URL` = `https://ihmuin-filemend-com.hf.space` (PDF to Word API – Hugging Face Space URL)
+3. Deploy sonrası ortam değişkeni güncellendiğinde **Redeploy** yapın.
+
+## PDF to Word – Backend (Hugging Face Spaces)
+
+PDF to Word API [Hugging Face Spaces](https://huggingface.co/spaces/ihmuin/filemend.com) üzerinde çalışır.  
+`hf-space/` klasöründeki dosyalar Space repo'suna yüklüdür.
+
+Detaylar için: `hf-space/DEPLOYMENT.md`
+
+---
+
+## PDF to Word – Alternatif Backend (Render.com)
+
+Kendi backend'inizi Render.com üzerinde host edebilirsiniz:
 
 1. Create a **New Web Service** on [Render](https://render.com).
 2. Connect your GitHub repository.
 3. Set **Root Directory** to `backend`.
 4. Set **Runtime** to **Docker**.
-5. Choose **Free** plan and deploy.
-6. Note your service URL (e.g. `https://your-app-name.onrender.com`).
+5. Note your service URL (e.g. `https://your-app-name.onrender.com`).
 
-### Environment setup
-
-- In the frontend, set `VITE_BACKEND_URL` in `.env.local` (or your build env) to the Render URL, e.g.  
-  `VITE_BACKEND_URL=https://your-app-name.onrender.com`
-- Rebuild and redeploy the frontend (e.g. on Vercel) so the new env is applied.
+Environment: `VITE_API_URL` veya `VITE_BACKEND_URL` = Render URL.
 
 ---
 

@@ -53,6 +53,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -145,9 +147,9 @@ const SortablePageItem = ({
       className={cn(
         'group relative flex flex-col gap-0.5 p-1 sm:p-1.5 rounded-lg border-2 bg-white dark:bg-gray-900 cursor-grab active:cursor-grabbing transition-all duration-200',
         selected 
-          ? 'border-primary ring-2 ring-primary/20 shadow-md' 
+          ? 'border-sky-500 ring-2 ring-sky-500/20 shadow-md' 
           : 'border-gray-200 dark:border-gray-800 hover:border-gray-300',
-        isDragging && 'opacity-50 scale-105 rotate-2 shadow-2xl ring-2 ring-primary'
+        isDragging && 'opacity-50 scale-105 rotate-2 shadow-2xl ring-2 ring-sky-500'
       )}
       onClick={() => !isDragging && onSelect(index)}
     >
@@ -181,8 +183,8 @@ const SortablePageItem = ({
         />
         
         {selected && (
-          <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-            <div className="bg-primary text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">
+          <div className="absolute inset-0 bg-sky-500/10 flex items-center justify-center">
+            <div className="bg-sky-600 text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">
               {t.pdfEdit.selected}
             </div>
           </div>
@@ -244,9 +246,9 @@ const SortableFileItem = ({
       className={cn(
         'group relative flex flex-col gap-1.5 sm:gap-2 p-1.5 sm:p-3 rounded-xl border-2 bg-white dark:bg-gray-900 cursor-grab active:cursor-grabbing transition-all duration-200',
         selected 
-          ? 'border-primary ring-2 ring-primary/20 shadow-md' 
+          ? 'border-sky-500 ring-2 ring-sky-500/20 shadow-md' 
           : 'border-gray-200 dark:border-gray-800 hover:border-gray-300',
-        isDragging && 'opacity-50 scale-105 rotate-2 shadow-2xl ring-2 ring-primary'
+        isDragging && 'opacity-50 scale-105 rotate-2 shadow-2xl ring-2 ring-sky-500'
       )}
       onClick={() => !isDragging && onSelect(fileIndex)}
     >
@@ -289,8 +291,8 @@ const SortableFileItem = ({
         )}
         
         {selected && (
-          <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-            <div className="bg-primary text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">
+          <div className="absolute inset-0 bg-sky-500/10 flex items-center justify-center">
+            <div className="bg-sky-600 text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">
               {t.pdfEdit.selected}
             </div>
           </div>
@@ -326,6 +328,7 @@ export const PDFEdit = () => {
   const [isPageModalOpen, setIsPageModalOpen] = useState(false);
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [modalPageIndex, setModalPageIndex] = useState<number | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const { toast } = useToast();
 
@@ -832,18 +835,78 @@ export const PDFEdit = () => {
 
     try {
       const newPdf = await PDFDocument.create();
+      const loadedPdfs = new Map<string, Awaited<ReturnType<typeof PDFDocument.load>>>();
 
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
         const pdfFile = files[page.pdfIndex];
-        
-        const arrayBuffer = await pdfFile.file.arrayBuffer();
-        const sourcePdf = await PDFDocument.load(arrayBuffer);
-        
-        const [copiedPage] = await newPdf.copyPages(sourcePdf, [page.pageNumber - 1]);
-        
+
+        if (!pdfFile) {
+          toast({ title: t.messages.error, description: t.messages.exportError, variant: 'destructive' });
+          return;
+        }
+
+        const pageIndex = page.pageNumber - 1;
+        if (pageIndex < 0 || page.pageNumber > pdfFile.pageCount) {
+          toast({ title: t.messages.error, description: t.messages.exportError, variant: 'destructive' });
+          return;
+        }
+
+        let sourcePdf = loadedPdfs.get(pdfFile.id);
+        if (!sourcePdf) {
+          try {
+            const arrayBuffer = await pdfFile.file.arrayBuffer();
+            sourcePdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+            loadedPdfs.set(pdfFile.id, sourcePdf);
+          } catch (loadErr) {
+            console.error('PDF load failed:', loadErr);
+            const fileName = pdfFile.file?.name ?? 'PDF';
+            toast({
+              title: t.messages.error,
+              description: `${t.messages.exportError} (${fileName})`,
+              variant: 'destructive',
+            });
+            return;
+          }
+        }
+
+        let pageCount: number;
+        try {
+          pageCount = sourcePdf.getPageCount();
+        } catch (e) {
+          const fileName = pdfFile.file?.name ?? 'PDF';
+          toast({
+            title: t.messages.error,
+            description: `${t.messages.exportError} (${fileName})`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (pageIndex >= pageCount) {
+          toast({ title: t.messages.error, description: t.messages.exportError, variant: 'destructive' });
+          return;
+        }
+
+        let copiedPage;
+        try {
+          [copiedPage] = await newPdf.copyPages(sourcePdf, [pageIndex]);
+        } catch (copyErr) {
+          console.error('copyPages failed:', copyErr);
+          const fileName = pdfFile.file?.name ?? 'PDF';
+          toast({
+            title: t.messages.error,
+            description: `${t.messages.exportError} (${fileName})`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (!copiedPage) {
+          toast({ title: t.messages.error, description: t.messages.exportError, variant: 'destructive' });
+          return;
+        }
+
         if (page.rotation !== 0) copiedPage.setRotation(degrees(page.rotation));
-        
+
         newPdf.addPage(copiedPage);
         setProgress(Math.round(((i + 1) / pages.length) * 100));
       }
@@ -890,7 +953,7 @@ export const PDFEdit = () => {
     if (viewMode === 'pages') {
       const page = pages.find(p => p.id === activeId);
       return page ? (
-        <div className="flex flex-col gap-2 p-3 rounded-xl border-2 border-primary bg-white shadow-2xl rotate-3 scale-105 opacity-90 cursor-grabbing">
+        <div className="flex flex-col gap-2 p-3 rounded-xl border-2 border-sky-500 bg-white shadow-2xl rotate-3 scale-105 opacity-90 cursor-grabbing">
           <div className="aspect-[210/297] w-32 sm:w-40 overflow-hidden rounded-lg bg-gray-100">
             <img src={page.thumbnail} className="w-full h-full object-contain" style={{ imageRendering: 'crisp-edges' }} alt="" />
           </div>
@@ -901,9 +964,9 @@ export const PDFEdit = () => {
       if (!file) return null;
       const thumb = getFileThumbnail(files.indexOf(file));
       return (
-        <div className="flex flex-col gap-2 p-4 rounded-xl border-2 border-primary bg-white shadow-2xl rotate-3 scale-105 opacity-90 cursor-grabbing w-48 sm:w-64">
+        <div className="flex flex-col gap-2 p-4 rounded-xl border-2 border-sky-500 bg-white shadow-2xl rotate-3 scale-105 opacity-90 cursor-grabbing w-48 sm:w-64">
           <div className="flex items-center gap-2">
-            <File className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <File className="w-4 h-4 sm:w-5 sm:h-5 text-sky-600" />
             <span className="font-semibold truncate text-xs sm:text-sm">{file.file.name}</span>
           </div>
           {thumb && <img src={thumb} className="w-full object-contain" style={{ imageRendering: 'crisp-edges' }} alt="" />}
@@ -912,14 +975,44 @@ export const PDFEdit = () => {
     }
   };
 
+  if (pages.length === 0) {
+    return (
+      <PDFPageLayout
+        title={t.pdfEdit.title}
+        description={t.pdfEdit.description}
+        icon={FileEdit}
+        maxWidth="max-w-4xl"
+        centerHeader={false}
+      >
+        <div className="space-y-4">
+          <PDFDropzone
+            inputId="pdf-edit-input"
+            dropText={t.pdfToWord.dropText}
+            dropSubtext={t.dropzone.multipleFiles}
+            isDragOver={isDragOver}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              if (e.dataTransfer.files.length > 0) handleFilesDrop(e.dataTransfer.files);
+            }}
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+            onFileInput={(e) => e.target.files && handleFilesDrop(e.target.files)}
+            accept=".pdf"
+            multiple
+          />
+          {processing && <ProgressBar progress={progress} label={t.ui.pdfLoading} className="mt-4" />}
+        </div>
+      </PDFPageLayout>
+    );
+  }
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-7xl h-[calc(100vh-4rem)] flex flex-col gap-4 sm:gap-6 overflow-hidden">
-      {/* {t.comments.headerRedesigned} */}
       <div className="flex items-center justify-between gap-3 sm:gap-4 shrink-0">
-        {/* {t.comments.leftGroup} */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg shrink-0">
+            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-sky-500 to-sky-600 rounded-xl shadow-lg shrink-0">
               <FileEdit className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div className="min-w-0">
@@ -939,12 +1032,12 @@ export const PDFEdit = () => {
               size="sm"
               onClick={undo} 
               disabled={history.length === 0}
-              className="h-9 sm:h-10 px-2.5 sm:px-3 shrink-0 gap-1.5 sm:gap-2 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 disabled:opacity-50"
+              className="h-9 sm:h-10 px-2.5 sm:px-3 shrink-0 gap-1.5 sm:gap-2 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 disabled:opacity-50"
             >
               <Undo2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline text-xs sm:text-sm font-medium">{t.ui.undo}</span>
               {history.length > 0 && (
-                <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                <span className="bg-sky-500/10 text-sky-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                   {history.length}
                 </span>
               )}
@@ -978,7 +1071,7 @@ export const PDFEdit = () => {
               onClick={handleExport} 
               disabled={processing}
               size="sm"
-              className="h-9 sm:h-10 px-3 sm:px-4 gap-1.5 sm:gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md font-medium"
+              className="h-9 sm:h-10 px-3 sm:px-4 gap-1.5 sm:gap-2 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 shadow-md font-medium"
             >
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline text-xs sm:text-sm">{t.pdfEdit.download}</span>
@@ -987,13 +1080,7 @@ export const PDFEdit = () => {
         </div>
       </div>
 
-      {pages.length === 0 ? (
-        <div className="flex-1 flex flex-col justify-center overflow-hidden">
-          <FileDropzone onFilesDrop={handleFilesDrop} onClear={handleClear} accept=".pdf" multiple={true} selectedFiles={[]} />
-          {processing && <ProgressBar progress={progress} label={t.ui.pdfLoading} />}
-        </div>
-      ) : (
-        <div className="flex flex-col flex-1 gap-3 sm:gap-4 min-h-0">
+      <div className="flex flex-col flex-1 gap-3 sm:gap-4 min-h-0">
           {/* {t.comments.toolbarRedesigned} */}
           <div className="flex items-center justify-between gap-2 sm:gap-3 shrink-0 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-2.5 sm:p-3 rounded-xl border shadow-sm">
             {/* {t.comments.leftGroupModeSelector} */}
@@ -1005,7 +1092,7 @@ export const PDFEdit = () => {
                   className={cn(
                     'flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-semibold transition-all duration-200',
                     viewMode === 'files' 
-                      ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-md scale-105' 
+                      ? 'bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-md scale-105' 
                       : 'text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800'
                   )}
                 >
@@ -1015,7 +1102,7 @@ export const PDFEdit = () => {
                     "text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center",
                     viewMode === 'files' 
                       ? "bg-white/20 text-white" 
-                      : "bg-primary/10 text-primary"
+                      : "bg-sky-500/10 text-sky-600"
                   )}>
                     {files.length}
                   </span>
@@ -1025,7 +1112,7 @@ export const PDFEdit = () => {
                   className={cn(
                     'flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-semibold transition-all duration-200',
                     viewMode === 'pages' 
-                      ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-md scale-105' 
+                      ? 'bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-md scale-105' 
                       : 'text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800'
                   )}
                 >
@@ -1035,7 +1122,7 @@ export const PDFEdit = () => {
                     "text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center",
                     viewMode === 'pages' 
                       ? "bg-white/20 text-white" 
-                      : "bg-primary/10 text-primary"
+                      : "bg-sky-500/10 text-sky-600"
                   )}>
                     {pages.length}
                   </span>
@@ -1141,7 +1228,7 @@ export const PDFEdit = () => {
                   variant="outline" 
                   size="sm"
                   onClick={rotateAllPages}
-                  className="h-9 sm:h-10 px-2.5 sm:px-3 gap-1.5 sm:gap-2 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700 font-medium"
+                  className="h-9 sm:h-10 px-2.5 sm:px-3 gap-1.5 sm:gap-2 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 font-medium"
                 >
                   <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span className="hidden lg:inline text-xs sm:text-sm">{t.pdfEdit.rotateAll}</span>
@@ -1193,7 +1280,6 @@ export const PDFEdit = () => {
 
           {processing && <ProgressBar progress={progress} label={t.pdfEdit.creating} />}
         </div>
-      )}
 
       {/* {t.comments.pageModalDesign} */}
       <Dialog open={isPageModalOpen} onOpenChange={setIsPageModalOpen}>
@@ -1222,7 +1308,7 @@ export const PDFEdit = () => {
                   variant="outline"
                   size="lg"
                   onClick={() => rotatePage(modalPageIndex)}
-                  className="h-11 w-11 sm:h-12 sm:w-12 p-0 hover:bg-orange-50 hover:border-orange-200"
+                  className="h-11 w-11 sm:h-12 sm:w-12 p-0 hover:bg-sky-50 hover:border-sky-200"
                 >
                   <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
                 </Button>
@@ -1270,7 +1356,7 @@ export const PDFEdit = () => {
             <>
               <DialogHeader className="shrink-0">
                 <DialogTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
-                  <File className="w-5 h-5 shrink-0 text-primary" />
+                  <File className="w-5 h-5 shrink-0 text-sky-600" />
                   <span className="truncate max-w-[250px] sm:max-w-md">{files[selectedFile].file.name}</span>
                   <span className="text-sm font-normal text-muted-foreground shrink-0">
                     ({files[selectedFile].pageCount} {t.ui.pages})
@@ -1285,7 +1371,7 @@ export const PDFEdit = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => rotateFile(selectedFile)}
-                    className="h-10 px-3 sm:px-4 gap-2 hover:bg-orange-50 hover:border-orange-200 font-medium"
+                    className="h-10 px-3 sm:px-4 gap-2 hover:bg-sky-50 hover:border-sky-200 font-medium"
                   >
                     <RotateCw className="w-4 h-4" />
                     <span className="text-xs sm:text-sm">{t.pdfEdit.rotateAll}</span>
@@ -1326,10 +1412,10 @@ export const PDFEdit = () => {
                         <button 
                           key={page.id} 
                           onClick={() => { setIsFileModalOpen(false); setModalPageIndex(globalIndex); setIsPageModalOpen(true); }} 
-                          className="group relative flex flex-col gap-1.5 p-2 rounded-lg border-2 bg-white dark:bg-gray-800 hover:border-primary hover:shadow-md transition-all text-left"
+                          className="group relative flex flex-col gap-1.5 p-2 rounded-lg border-2 bg-white dark:bg-gray-800 hover:border-sky-500 hover:shadow-md transition-all text-left"
                         >
                           <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                            <span className="bg-sky-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
                               #{globalIndex + 1}
                             </span>
                           </div>

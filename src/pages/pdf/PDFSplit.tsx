@@ -1,4 +1,3 @@
-// Removed unused imports: useEffect, useRef, Merge, ChevronUp
 import { useState, useCallback } from 'react';
 import { 
   Split, 
@@ -19,8 +18,9 @@ import {
   AlertCircle,
   TextSelect
 } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -86,6 +86,7 @@ export const PDFSplit = () => {
   
   // Core state
   const [file, setFile] = useState<File | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [pages, setPages] = useState<PDFPage[]>([]);
   const [processing, setProcessing] = useState(false);
@@ -769,41 +770,43 @@ export const PDFSplit = () => {
   // ============================================
   if (!file) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-8">
-          {/* Branding */}
-          <div className="text-sm sm:text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">
-            FileMend.com
-          </div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <div className="p-2 bg-red-500 rounded-lg">
-              <Split className="w-6 h-6 text-white" />
+      <PDFPageLayout
+        title={t.pdfSplit.title}
+        description={t.pdfSplit.description}
+        icon={Split}
+        maxWidth="max-w-4xl"
+        centerHeader={false}
+      >
+        <div className="space-y-4">
+          <div className="p-4 bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800 rounded-xl flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-sky-600 mt-0.5 shrink-0" />
+            <div className="text-sm text-sky-800 dark:text-sky-200">
+              {t.pdfSplit.privacy.title}
+              <ul className="list-disc list-inside mt-1 space-y-0.5">
+                <li>{t.pdfSplit.privacy.points[0]}</li>
+                <li>{t.pdfSplit.privacy.points[1]}</li>
+                <li>{t.pdfSplit.privacy.points[2]}</li>
+              </ul>
             </div>
-            {t.pdfSplit.title}
-          </h1>
-          <p className="text-muted-foreground mt-2">{t.pdfSplit.description}</p>
-        </div>
-
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-          <ShieldCheck className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
-          <div className="text-sm text-green-800">
-            {t.pdfSplit.privacy.title}
-            <ul className="list-disc list-inside mt-1 space-y-0.5">
-              <li>{t.pdfSplit.privacy.points[0]}</li>
-              <li>{t.pdfSplit.privacy.points[1]}</li>
-              <li>{t.pdfSplit.privacy.points[2]}</li>
-            </ul>
           </div>
+          <PDFDropzone
+            inputId="pdf-split-input"
+            dropText={t.pdfToWord.dropText}
+            dropSubtext={t.dropzone.singleFile}
+            isDragOver={isDragOver}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              if (e.dataTransfer.files.length > 0) handleFilesDrop(e.dataTransfer.files);
+            }}
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+            onFileInput={(e) => e.target.files && e.target.files.length > 0 && handleFilesDrop(e.target.files)}
+            accept=".pdf"
+            multiple={false}
+          />
         </div>
-
-        <FileDropzone
-          onFilesDrop={handleFilesDrop}
-          onClear={handleClear}
-          accept=".pdf"
-          multiple={false}
-          selectedFiles={[]}
-        />
-      </div>
+      </PDFPageLayout>
     );
   }
 
@@ -817,7 +820,7 @@ export const PDFSplit = () => {
             FileMend.com
           </div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Split className="w-6 h-6 text-red-500" />
+            <Split className="w-6 h-6 text-sky-500" />
             {t.pdfSplit.title}
           </h1>
           <div className="flex items-center gap-2 mt-1">
@@ -825,7 +828,7 @@ export const PDFSplit = () => {
               {file.name} • {pages.length} {t.ui.pages}
               {outlineLoaded && <span className="ml-2 text-xs text-blue-600">({pdfOutline.length} {t.pdfSplit.bookmarksFound})</span>}
             </p>
-            <Button variant="outline" size="sm" onClick={handleClear} className="text-red-600 border-red-200 hover:bg-red-50 h-6 text-xs">
+            <Button variant="outline" size="sm" onClick={handleClear} className="text-sky-600 border-sky-200 hover:bg-sky-50 h-6 text-xs">
               <X className="w-3 h-3 mr-1" />
               {t.pdfSplit.clear}
             </Button>
@@ -851,7 +854,7 @@ export const PDFSplit = () => {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
               activeMode === mode.id 
-                ? 'bg-primary text-primary-foreground border-primary' 
+                ? 'bg-sky-600 text-white border-sky-600' 
                 : 'bg-card border-border hover:bg-accent',
               mode.disabled && 'opacity-50 cursor-not-allowed'
             )}

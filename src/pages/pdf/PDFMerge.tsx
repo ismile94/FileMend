@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Merge, ArrowUp, ArrowDown, Trash2, Download, FileText } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { usePDF } from '@/hooks/usePDF';
@@ -12,8 +13,10 @@ import { useTranslation } from '@/contexts/LanguageContext';
 export const PDFMerge = () => {
   const { t } = useTranslation();
   const [files, setFiles] = useState<File[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const { mergePDFs, processing, progress } = usePDF();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFilesDrop = useCallback((fileList: FileList) => {
     const pdfFiles = Array.from(fileList).filter(
@@ -79,35 +82,55 @@ export const PDFMerge = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-red-500 rounded-lg">
-            <Merge className="w-6 h-6 text-white" />
-          </div>
-          {t.pdfMerge.title}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {t.pdfMerge.description}
-        </p>
-      </div>
-
-      <FileDropzone
-        onFilesDrop={handleFilesDrop}
-        onClear={handleClear}
+    <PDFPageLayout
+      title={t.pdfMerge.title}
+      description={t.pdfMerge.description}
+      icon={Merge}
+      maxWidth="max-w-4xl"
+      centerHeader={false}
+    >
+      {files.length === 0 ? (
+        <PDFDropzone
+          inputId="pdf-merge-input"
+          dropText={t.pdfToWord.dropText}
+          dropSubtext={t.dropzone.multipleFiles}
+          isDragOver={isDragOver}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            if (e.dataTransfer.files.length > 0) handleFilesDrop(e.dataTransfer.files);
+          }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+          onFileInput={(e) => e.target.files && handleFilesDrop(e.target.files)}
+          accept=".pdf"
+          multiple
+        />
+      ) : (
+        <>
+      <input
+        ref={fileInputRef}
+        type="file"
         accept=".pdf"
-        multiple={true}
-        selectedFiles={files}
+        multiple
+        className="hidden"
+        onChange={(e) => e.target.files && handleFilesDrop(e.target.files)}
       />
-
-      {files.length > 0 && (
         <Card className="mt-6">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
               <h3 className="font-semibold">{t.pdfMerge.sorting}</h3>
-              <span className="text-sm text-muted-foreground">
-                {t.pdfMerge.filesCount.replace('{count}', files.length.toString())}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {t.pdfMerge.filesCount.replace('{count}', files.length.toString())}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-sky-600 border-sky-200 hover:bg-sky-50">
+                  {t.pdfCompress.addFile}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleClear} className="text-muted-foreground">
+                  {t.dropzone.clear}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -119,7 +142,7 @@ export const PDFMerge = () => {
                   <span className="text-sm font-medium text-muted-foreground w-6">
                     {index + 1}
                   </span>
-                  <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <FileText className="w-5 h-5 text-sky-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{file.name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -167,7 +190,7 @@ export const PDFMerge = () => {
             <Button
               onClick={handleMerge}
               disabled={processing || files.length < 2}
-              className="w-full mt-6"
+              className="w-full mt-6 bg-sky-600 hover:bg-sky-700"
               size="lg"
             >
               {processing ? (
@@ -181,7 +204,8 @@ export const PDFMerge = () => {
             </Button>
           </CardContent>
         </Card>
+        </>
       )}
-    </div>
+    </PDFPageLayout>
   );
 };
