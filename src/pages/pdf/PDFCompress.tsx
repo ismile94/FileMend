@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Minimize2, FileText, Trash2, Download, CheckCircle, AlertCircle, Plus } from 'lucide-react';
 
 import { ProgressBar } from '@/components/ProgressBar';
@@ -19,105 +19,16 @@ import { useTranslation } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
 import { PDFDropzone } from '@/components/pdf/PDFDropzone';
-import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument } from 'pdf-lib';
+import { compressPDF, checkHealth, APIError } from '@/config/api';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-
 type CompressionLevel = 'low' | 'medium' | 'extreme';
 
-// Her seviye için optimize parametreler
-function getSettingsForLevel(level: CompressionLevel): { 
-  scale: number; 
-  imageQuality: number; 
-  textThreshold: number;
-  minCompressionPercent: number; // Minimum kazanç oranı
-  description: string;
-} {
-  switch (level) {
-    case 'low':
-      return { 
-        scale: 1, 
-        imageQuality: 0.85,
-        textThreshold: 0.05, // Daha agresif: az metin bile olsa kopyala
-        minCompressionPercent: 3, // En az %3 küçülme olmalı
-        description: 'En yüksek kalite, en az sıkıştırma'
-      };
-    case 'medium':
-      return { 
-        scale: 1, 
-        imageQuality: 0.65,
-        textThreshold: 0.10,
-        minCompressionPercent: 5,
-        description: 'Dengeli kalite ve boyut'
-      };
-    case 'extreme':
-      return { 
-        scale: 0.85, 
-        imageQuality: 0.45,
-        textThreshold: 0.20, // Daha az sayfa text-heavy sayılır
-        minCompressionPercent: 10,
-        description: 'Maksimum sıkıştırma'
-      };
-  }
-}
-
-/**
- * Sayfanın metin ağırlıklı mı yoksa görsel ağırlıklı mı olduğunu tahmin eder.
- */
-async function isPageTextHeavy(
-  page: pdfjsLib.PDFPageProxy, 
-  textThreshold: number
-): Promise<boolean> {
-  const viewport = page.getViewport({ scale: 1 });
-  const pageArea = viewport.width * viewport.height;
-  if (pageArea <= 0) return true;
-
-  const textContent = await page.getTextContent();
-  let textArea = 0;
-  
-  for (const item of textContent.items) {
-    if ('str' in item && typeof (item as { width?: number; height?: number }).width === 'number' && typeof (item as { width?: number; height?: number }).height === 'number') {
-      const w = (item as { width: number; height: number }).width;
-      const h = (item as { width: number; height: number }).height;
-      textArea += w * h;
-    }
-  }
-  
-  const ratio = textArea / pageArea;
-  return ratio >= textThreshold;
-}
-
-/** Sayfayı canvas'a çizip JPEG blob döner */
-const renderPageToJpeg = (
-  page: pdfjsLib.PDFPageProxy,
-  scale: number,
-  imageQuality: number,
-  errors: { canvasContext: string; toBlob: string }
-): Promise<{ blob: Blob; widthPt: number; heightPt: number }> => {
-  const viewport = page.getViewport({ scale });
-  const sizePt = page.getViewport({ scale: 1 });
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) return Promise.reject(new Error(errors.canvasContext));
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  return page
-    .render({ canvasContext: ctx, viewport, background: 'white' })
-    .promise.then(() => {
-      return new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error(errors.toBlob))),
-          'image/jpeg',
-          imageQuality
-        );
-      });
-    })
-    .then((blob) => ({ blob, widthPt: sizePt.width, heightPt: sizePt.height }));
+const COMPRESSION_DESCRIPTIONS: Record<CompressionLevel, string> = {
+  low: 'En yüksek kalite, en az sıkıştırma',
+  medium: 'Dengeli kalite ve boyut',
+  extreme: 'Maksimum sıkıştırma',
 };
 
 interface FileStatus {
@@ -188,137 +99,100 @@ export const PDFCompress = () => {
     setFiles(prev => [...prev, ...newFiles]);
   }, [files, toast, t.messages.error, t.messages.pleaseUpload, t.messages.pdfFile, t.messages.success, t.pdfCompress.duplicateSkipped]);
 
+  // Backend health check
+  useEffect(() => {
+    const checkBackendHealth = async () => {
+      const isHealthy = await checkHealth();
+      if (!isHealthy) {
+        console.warn('PDF Compress backend service is not available');
+      }
+    };
+
+    checkBackendHealth();
+  }, []);
+
   const compressSingleFile = async (fileId: string, level?: CompressionLevel) => {
     const fileStatus = files.find(f => f.id === fileId);
     if (!fileStatus) return;
 
     const currentLevel = level || compressionLevel;
-    const settings = getSettingsForLevel(currentLevel);
 
     setFiles(prev => prev.map(f =>
       f.id === fileId ? { ...f, isProcessing: true, error: undefined, progress: 0 } : f
     ));
 
     try {
-      const arrayBuffer = await fileStatus.file.arrayBuffer();
-      const bufferForPdfJs = arrayBuffer.slice(0);
-      const bufferForPdfLib = arrayBuffer.slice(0);
-
-      setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 5 } : f)));
-
-      const renderErrors = {
-        canvasContext: t.pdfCompress.errors.canvasContextMissing,
-        toBlob: t.pdfCompress.errors.toBlobFailed,
-      };
-
-      // Hybrid yaklaşım: Her sayfayı analiz et
-      const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferForPdfJs }).promise;
-      const sourcePdf = await PDFDocument.load(bufferForPdfLib);
-      const numPages = pdfJsDoc.numPages;
-      const outPdf = await PDFDocument.create();
-
-      let textHeavyCount = 0;
-      let imageHeavyCount = 0;
-
-      for (let i = 0; i < numPages; i++) {
-        const pct = 5 + Math.round(((i + 1) / numPages) * 90);
-        setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: pct } : f)));
-
-        const page = await pdfJsDoc.getPage(i + 1);
-        const textHeavy = await isPageTextHeavy(page, settings.textThreshold);
-
-        if (textHeavy) {
-          // Text ağırlıklı sayfa: Lossless kopyala
-          textHeavyCount++;
-          const [copiedPage] = await outPdf.copyPages(sourcePdf, [i]);
-          outPdf.addPage(copiedPage);
-        } else {
-          // Görsel ağırlıklı sayfa: JPEG'e çevir
-          imageHeavyCount++;
-          const { blob, widthPt, heightPt } = await renderPageToJpeg(
-            page,
-            settings.scale,
-            settings.imageQuality,
-            renderErrors
-          );
-          const jpegBytes = await blob.arrayBuffer();
-          const image = await outPdf.embedJpg(jpegBytes);
-          const pdfPage = outPdf.addPage([widthPt, heightPt]);
-          pdfPage.drawImage(image, { x: 0, y: 0, width: widthPt, height: heightPt });
+      // Backend API'sini kullan
+      const result = await compressPDF(
+        fileStatus.file,
+        currentLevel,
+        // Progress callback
+        (progress) => {
+          setFiles(prev => prev.map(f =>
+            f.id === fileId ? { ...f, progress: Math.round(progress) } : f
+          ));
         }
-      }
+      );
 
-      setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, progress: 95 } : f)));
-      
-      // PDF'i kaydet
-      const pdfBytes = await outPdf.save({ 
-        useObjectStreams: false, // Daha küçük dosya için
-        addDefaultPage: false,
-        objectsPerTick: 50,
-      });
-      
-      const compressedBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
-      const compressedSize = compressedBlob.size;
-      const compressionRatio = ((fileStatus.originalSize - compressedSize) / fileStatus.originalSize) * 100;
-
-      // KONTROL: Eğer dosya büyüdü veya çok az küçüldüyse, orijinali kullan
-      let finalBlob = compressedBlob;
-      let finalSize = compressedSize;
-      let finalRatio = compressionRatio;
-      let wasAlreadyOptimized = false;
-
-      if (compressionRatio < settings.minCompressionPercent) {
-        // Yeterli küçülme yok, orijinali kullan
-        finalBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-        finalSize = fileStatus.originalSize;
-        finalRatio = 0;
-        wasAlreadyOptimized = true;
-      }
-
+      // State'i güncelle
       setFiles(prev => prev.map(f =>
         f.id === fileId
           ? {
               ...f,
-              compressedBlob: finalBlob,
-              compressedSize: finalSize,
-              compressionRatio: finalRatio,
+              compressedBlob: result.blob,
+              compressedSize: result.compressedSize,
+              compressionRatio: result.compressionRatio,
               isProcessing: false,
               progress: 100,
               compressionLevel: currentLevel,
-              wasAlreadyOptimized,
+              wasAlreadyOptimized: result.wasAlreadyOptimized,
             }
           : f
       ));
 
       // Bilgilendirme mesajı
-      if (wasAlreadyOptimized) {
+      if (result.wasAlreadyOptimized) {
         toast({
-          title: 'Bilgi',
+          title: t.pdfCompress.info,
           description: `${fileStatus.file.name} zaten optimize edilmiş. Orijinal dosya korundu.`,
         });
       } else {
         const levelLabel = currentLevel === 'low' ? 'Düşük' : currentLevel === 'medium' ? 'Orta' : 'Yüksek';
-        const modeInfo = imageHeavyCount > 0 
-          ? `${textHeavyCount} sayfa korundu, ${imageHeavyCount} sayfa sıkıştırıldı`
+        const modeInfo = result.imageHeavyPages > 0
+          ? `${result.textHeavyPages} sayfa korundu, ${result.imageHeavyPages} sayfa sıkıştırıldı`
           : 'Metin sayfaları optimize edildi';
-        
+
         toast({
           title: t.messages.success,
-          description: `${fileStatus.file.name} - %${Math.round(compressionRatio)} küçültme (${levelLabel} - ${modeInfo})`,
+          description: `${fileStatus.file.name} - %${Math.round(result.compressionRatio)} küçültme (${levelLabel} - ${modeInfo})`,
         });
       }
     } catch (error) {
-      console.error(t.pdfCompress.log.compressionError, error);
+      console.error('Compression error:', error);
+
+      let errorMessage = t.pdfCompress.unknownError;
+
+      if (error instanceof APIError) {
+        if (error.status === 413) {
+          errorMessage = 'Dosya çok büyük (max 50MB)';
+        } else if (error.status === 408) {
+          errorMessage = 'İstek zaman aşımına uğradı';
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       setFiles(prev => prev.map(f =>
         f.id === fileId
-          ? { ...f, isProcessing: false, error: t.pdfCompress.compressionFailed, progress: 0 }
+          ? { ...f, isProcessing: false, error: errorMessage, progress: 0 }
           : f
       ));
 
-      const message = error instanceof Error ? error.message : t.pdfCompress.unknownError;
       toast({
         title: t.messages.error,
-        description: `${fileStatus.file.name} ${t.pdfCompress.couldNotCompress}. ${message}`,
+        description: `${fileStatus.file.name} ${t.pdfCompress.couldNotCompress}. ${errorMessage}`,
         variant: 'destructive',
       });
     }
@@ -454,7 +328,6 @@ export const PDFCompress = () => {
   const stats = getStats();
   const filesToCompress = getFilesToCompress();
   const canCompress = filesToCompress.length > 0;
-  const currentSettings = getSettingsForLevel(compressionLevel);
 
   return (
     <PDFPageLayout
@@ -537,7 +410,7 @@ export const PDFCompress = () => {
               </button>
             </div>
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              ({currentSettings.description})
+              ({COMPRESSION_DESCRIPTIONS[compressionLevel]})
             </span>
           </div>
 

@@ -1,0 +1,28 @@
+FROM python:3.11-slim
+
+# Sistem bağımlılıkları
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    mupdf \
+    mupdf-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Çalışma dizini
+WORKDIR /app
+
+# Requirements'ı kopyala ve yükle
+COPY requirements-compress.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Uygulama dosyalarını kopyala
+COPY pdfcompress.py .
+
+# Port expose
+EXPOSE 7860
+
+# Hugging Face Spaces için gerekli environment variables
+ENV GRADIO_SERVER_NAME="0.0.0.0"
+ENV GRADIO_SERVER_PORT=7860
+
+# Uvicorn ile başlat
+CMD ["uvicorn", "pdfcompress:app", "--host", "0.0.0.0", "--port", "7860"]
