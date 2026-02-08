@@ -386,6 +386,7 @@ export const PDFCompress = () => {
 
   return (
     <PDFPageLayout
+      variant="pdf"
       title={t.pdfCompress.title}
       description={t.pdfCompress.description}
       icon={Minimize2}
@@ -548,6 +549,7 @@ export const PDFCompress = () => {
       {/* File Dropzone */}
       {files.length === 0 && (
         <PDFDropzone
+          variant="pdf"
           inputId="pdf-compress-input"
           dropText={t.pdfCompress.dropOrSelect}
           dropSubtext="PDF dosyaları (min 500KB) yükleyin. Küçük dosyalar otomatik olarak atlanır."

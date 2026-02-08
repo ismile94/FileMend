@@ -4,7 +4,9 @@ import { useRef, useCallback } from 'react';
 import { FileUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/** PDF sayfalarında ortak "sürükle-bırak veya tıkla" alanı. Açık gök mavisi tema, biraz küçültülmüş. */
+export type DropzoneVariant = 'pdf' | 'audio' | 'image';
+
+/** PDF/Audio/Image sayfalarında ortak "sürükle-bırak veya tıkla" alanı. variant'a göre tema: pdf=kırmızı, audio=mavi, image=yeşil. */
 interface PDFDropzoneProps {
   dropText: string;
   dropSubtext?: string;
@@ -17,6 +19,8 @@ interface PDFDropzoneProps {
   multiple?: boolean;
   inputId: string;
   className?: string;
+  /** Tema: pdf=açık kırmızı, audio=açık mavi, image=açık yeşil */
+  variant?: DropzoneVariant;
   /** Tıklanabilir alan için ek keyboard handler (Enter/Space). */
   onKeyDown?: (e: React.KeyboardEvent) => void;
 }
@@ -33,6 +37,7 @@ export function PDFDropzone({
   multiple = false,
   inputId,
   className,
+  variant = 'pdf',
   onKeyDown,
 }: PDFDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,10 +58,23 @@ export function PDFDropzone({
       className={cn(
         'relative border-2 border-dashed rounded-2xl p-8 sm:p-10 transition-all duration-300 cursor-pointer',
         'flex flex-col items-center justify-center gap-4 min-h-[200px] group',
-        'hover:border-sky-500 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 hover:shadow-lg',
-        isDragOver
-          ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 scale-[1.02] shadow-lg'
-          : 'border-sky-300/50 dark:border-sky-700/50',
+        'hover:shadow-lg',
+        variant === 'pdf' && [
+          'border-red-300/50 dark:border-red-700/50',
+          'hover:border-red-500 hover:bg-red-50/50 dark:hover:bg-red-950/20',
+          isDragOver && 'border-red-500 bg-red-50/50 dark:bg-red-950/20',
+        ],
+        variant === 'audio' && [
+          'border-sky-300/50 dark:border-sky-700/50',
+          'hover:border-sky-500 hover:bg-sky-50/50 dark:hover:bg-sky-950/20',
+          isDragOver && 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/20',
+        ],
+        variant === 'image' && [
+          'border-green-300/50 dark:border-green-700/50',
+          'hover:border-green-500 hover:bg-green-50/50 dark:hover:bg-green-950/20',
+          isDragOver && 'border-green-500 bg-green-50/50 dark:bg-green-950/20',
+        ],
+        isDragOver && 'scale-[1.02] shadow-lg',
         className
       )}
     >
@@ -71,8 +89,22 @@ export function PDFDropzone({
       />
 
       <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-400 to-sky-500 rounded-full blur-xl opacity-0 group-hover:opacity-40 transition-opacity duration-300" />
-        <FileUp className="relative w-12 h-12 sm:w-14 sm:h-14 text-sky-500 dark:text-sky-400 transition-transform duration-300 group-hover:scale-110" />
+        <div
+          className={cn(
+            'absolute inset-0 bg-gradient-to-br rounded-full blur-xl opacity-0 group-hover:opacity-40 transition-opacity duration-300',
+            variant === 'pdf' && 'from-red-400 to-red-500',
+            variant === 'audio' && 'from-sky-400 to-sky-500',
+            variant === 'image' && 'from-green-400 to-green-500'
+          )}
+        />
+        <FileUp
+          className={cn(
+            'relative w-12 h-12 sm:w-14 sm:h-14 transition-transform duration-300 group-hover:scale-110',
+            variant === 'pdf' && 'text-red-500 dark:text-red-400',
+            variant === 'audio' && 'text-sky-500 dark:text-sky-400',
+            variant === 'image' && 'text-green-500 dark:text-green-400'
+          )}
+        />
       </div>
 
       <div className="space-y-1 text-center">

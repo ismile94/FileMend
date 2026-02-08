@@ -11,7 +11,7 @@ export const Footer = () => {
           {/* Brand */}
           <div>
             <div className="mb-4">
-              <img src={logoSrc} alt="FileMend" className="h-9 w-auto object-contain" />
+              <img src={logoSrc} alt="FileMend" className="h-[2.8125rem] w-auto max-w-[175px] object-contain" />
             </div>
             <p className="text-sm text-muted-foreground">
               {t.footer.brand.description}

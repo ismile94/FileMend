@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Merge, ArrowUp, ArrowDown, Trash2, Download, FileAudio, Loader2 } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { useDragDrop } from '@/hooks/useDragDrop';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useFFmpeg } from '@/hooks/useFFmpeg';
@@ -100,42 +102,57 @@ export const AudioMerge: React.FC = () => {
   };
 
   const isProcessing = loading || merging;
+  const { isDragging, handleDragOver, handleDragLeave, handleDrop, handleFileInput } = useDragDrop({
+    onFilesDrop: handleFilesDrop,
+    accept: 'audio/*',
+    multiple: true,
+  });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-blue-500 rounded-lg">
-            <Merge className="w-6 h-6 text-white" />
-          </div>
-          {t.audioMerge.title}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {t.audioMerge.description}
-        </p>
-      </div>
+    <PDFPageLayout
+      variant="audio"
+      title={t.audioMerge.title}
+      description={t.audioMerge.description}
+      icon={Merge}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-4">
+        {!loaded && (
+          <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
+              <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                {t.audioMerge.loadingLibrary}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {!loaded && (
-        <Card className="mb-6 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
-            <p className="text-sm text-yellow-700 dark:text-yellow-400">
-              {t.audioMerge.loadingLibrary}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        <PDFDropzone
+          variant="audio"
+          inputId="audio-merge-input"
+          dropText={t.dropzone.dropTextActive}
+          dropSubtext={t.dropzone.multipleFiles}
+          isDragOver={isDragging}
+          onDrop={(e) => {
+            e.preventDefault();
+            handleDrop(e);
+          }}
+          onDragOver={(e) => { e.preventDefault(); handleDragOver(e); }}
+          onDragLeave={(e) => { e.preventDefault(); handleDragLeave(e); }}
+          onFileInput={handleFileInput}
+          accept="audio/*"
+          multiple
+        />
 
-      <FileDropzone
-        onFilesDrop={handleFilesDrop}
-        onClear={handleClear}
-        accept="audio/*"
-        multiple={true}
-        selectedFiles={files}
-      />
-
-      {files.length > 0 && (
-        <Card className="mt-6">
+        {files.length > 0 && (
+          <>
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={handleClear}>
+                {t.dropzone.clear}
+              </Button>
+            </div>
+            <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">{t.audioMerge.sorting}</h3>
@@ -216,9 +233,11 @@ export const AudioMerge: React.FC = () => {
                 </>
               )}
             </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        </>
+        )}
+      </div>
+    </PDFPageLayout>
   );
 };

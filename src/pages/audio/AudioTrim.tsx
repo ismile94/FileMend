@@ -1,14 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Scissors, Download, FileAudio, Loader2, Play, Pause } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
+import { Scissors, Download, Loader2, Play, Pause } from 'lucide-react';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { useDragDrop } from '@/hooks/useDragDrop';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useFFmpeg } from '@/hooks/useFFmpeg';
 import { useToast } from '@/hooks/use-toast';
-import { downloadBlob, formatFileSize } from '@/utils/fileHelpers';
+import { downloadBlob } from '@/utils/fileHelpers';
 import { useTranslation } from '@/contexts/LanguageContext';
 
 export const AudioTrim: React.FC = () => {
@@ -122,43 +124,58 @@ export const AudioTrim: React.FC = () => {
   };
 
   const isProcessing = loading || trimming;
+  const { isDragging, handleDragOver, handleDragLeave, handleDrop, handleFileInput } = useDragDrop({
+    onFilesDrop: handleFilesDrop,
+    accept: 'audio/*',
+    multiple: false,
+  });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-blue-500 rounded-lg">
-            <Scissors className="w-6 h-6 text-white" />
-          </div>
-          {t.audioTrim.title}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {t.audioTrim.description}
-        </p>
-      </div>
+    <PDFPageLayout
+      variant="audio"
+      title={t.audioTrim.title}
+      description={t.audioTrim.description}
+      icon={Scissors}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-4">
+        {!loaded && (
+          <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
+              <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                {t.audioTrim.loadingLibrary}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {!loaded && (
-        <Card className="mb-6 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
-            <p className="text-sm text-yellow-700 dark:text-yellow-400">
-              {t.audioTrim.loadingLibrary}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        <PDFDropzone
+          variant="audio"
+          inputId="audio-trim-input"
+          dropText={t.dropzone.dropTextActive}
+          dropSubtext={t.dropzone.singleFile}
+          isDragOver={isDragging}
+          onDrop={(e) => {
+            e.preventDefault();
+            handleDrop(e);
+          }}
+          onDragOver={(e) => { e.preventDefault(); handleDragOver(e); }}
+          onDragLeave={(e) => { e.preventDefault(); handleDragLeave(e); }}
+          onFileInput={handleFileInput}
+          accept="audio/*"
+          multiple={false}
+        />
 
-      <FileDropzone
-        onFilesDrop={handleFilesDrop}
-        onClear={handleClear}
-        accept="audio/*"
-        multiple={false}
-        selectedFiles={file ? [file] : []}
-      />
-
-      {file && audioUrl && (
-        <Card className="mt-6">
-          <CardContent className="p-6">
+        {file && audioUrl && (
+          <>
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={handleClear}>
+                {t.dropzone.clear}
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6">
             <audio
               ref={audioRef}
               src={audioUrl}
@@ -244,9 +261,11 @@ export const AudioTrim: React.FC = () => {
                 />
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </PDFPageLayout>
   );
 };

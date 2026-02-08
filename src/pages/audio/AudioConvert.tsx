@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Music, Download, FileAudio, Loader2 } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
+import { Music, Download, Loader2 } from 'lucide-react';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { useDragDrop } from '@/hooks/useDragDrop';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { useFFmpeg } from '@/hooks/useFFmpeg';
 import { useToast } from '@/hooks/use-toast';
-import { downloadBlob, formatFileSize } from '@/utils/fileHelpers';
+import { downloadBlob } from '@/utils/fileHelpers';
 import { AUDIO_FORMATS } from '@/types';
 import { useTranslation } from '@/contexts/LanguageContext';
 
@@ -90,42 +92,57 @@ export const AudioConvert: React.FC = () => {
   };
 
   const isProcessing = loading || converting;
+  const { isDragging, handleDragOver, handleDragLeave, handleDrop, handleFileInput } = useDragDrop({
+    onFilesDrop: handleFilesDrop,
+    accept: 'audio/*',
+    multiple: false,
+  });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-blue-500 rounded-lg">
-            <Music className="w-6 h-6 text-white" />
-          </div>
-          {t.audioConvert.title}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {t.audioConvert.description}
-        </p>
-      </div>
+    <PDFPageLayout
+      variant="audio"
+      title={t.audioConvert.title}
+      description={t.audioConvert.description}
+      icon={Music}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-4">
+        {!loaded && (
+          <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
+              <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                {t.audioConvert.loadingLibrary}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {!loaded && (
-        <Card className="mb-6 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
-            <p className="text-sm text-yellow-700 dark:text-yellow-400">
-              {t.audioConvert.loadingLibrary}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        <PDFDropzone
+          variant="audio"
+          inputId="audio-convert-input"
+          dropText={t.dropzone.dropTextActive}
+          dropSubtext={t.dropzone.singleFile}
+          isDragOver={isDragging}
+          onDrop={(e) => {
+            e.preventDefault();
+            handleDrop(e);
+          }}
+          onDragOver={(e) => { e.preventDefault(); handleDragOver(e); }}
+          onDragLeave={(e) => { e.preventDefault(); handleDragLeave(e); }}
+          onFileInput={handleFileInput}
+          accept="audio/*"
+          multiple={false}
+        />
 
-      <FileDropzone
-        onFilesDrop={handleFilesDrop}
-        onClear={handleClear}
-        accept="audio/*"
-        multiple={false}
-        selectedFiles={file ? [file] : []}
-      />
-
-      {file && (
-        <Card className="mt-6">
+        {file && (
+          <>
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={handleClear}>
+                {t.dropzone.clear}
+              </Button>
+            </div>
+            <Card>
           <CardContent className="p-6">
             <div className="mb-6">
               <Label htmlFor="format" className="text-base font-medium mb-2 block">
@@ -169,9 +186,11 @@ export const AudioConvert: React.FC = () => {
                 </>
               )}
             </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        </>
+        )}
+      </div>
+    </PDFPageLayout>
   );
 };

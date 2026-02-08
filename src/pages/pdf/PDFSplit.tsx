@@ -771,6 +771,7 @@ export const PDFSplit = () => {
   if (!file) {
     return (
       <PDFPageLayout
+        variant="pdf"
         title={t.pdfSplit.title}
         description={t.pdfSplit.description}
         icon={Split}
@@ -778,18 +779,8 @@ export const PDFSplit = () => {
         centerHeader={false}
       >
         <div className="space-y-4">
-          <div className="p-4 bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800 rounded-xl flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-sky-600 mt-0.5 shrink-0" />
-            <div className="text-sm text-sky-800 dark:text-sky-200">
-              {t.pdfSplit.privacy.title}
-              <ul className="list-disc list-inside mt-1 space-y-0.5">
-                <li>{t.pdfSplit.privacy.points[0]}</li>
-                <li>{t.pdfSplit.privacy.points[1]}</li>
-                <li>{t.pdfSplit.privacy.points[2]}</li>
-              </ul>
-            </div>
-          </div>
           <PDFDropzone
+            variant="pdf"
             inputId="pdf-split-input"
             dropText={t.pdfToWord.dropText}
             dropSubtext={t.dropzone.singleFile}

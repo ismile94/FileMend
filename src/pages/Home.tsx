@@ -169,10 +169,22 @@ export const Home = () => {
 
   const currentCategory = categories.find(c => c.id === activeCategory)!;
 
+  const themeBg = {
+    pdf: 'bg-gradient-to-b from-red-50/80 via-background to-background dark:from-red-950/20 dark:via-background dark:to-background',
+    audio: 'bg-gradient-to-b from-sky-50/80 via-background to-background dark:from-sky-950/20 dark:via-background dark:to-background',
+    image: 'bg-gradient-to-b from-green-50/80 via-background to-background dark:from-green-950/20 dark:via-background dark:to-background',
+  } as const;
+
+  const heroBg = {
+    pdf: 'bg-gradient-to-b from-red-50/60 to-background dark:from-red-950/15 dark:to-background border-red-200/30 dark:border-red-900/30',
+    audio: 'bg-gradient-to-b from-sky-50/60 to-background dark:from-sky-950/15 dark:to-background border-sky-200/30 dark:border-sky-900/30',
+    image: 'bg-gradient-to-b from-green-50/60 to-background dark:from-green-950/15 dark:to-background border-green-200/30 dark:border-green-900/30',
+  } as const;
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className={cn('min-h-screen transition-colors duration-500', themeBg[activeCategory])}>
       {/* Hero Section - Layout Navigation tek header (tüm sayfalarda aynı) */}
-      <section className="pt-16 pb-12 lg:pt-20 lg:pb-16 border-b bg-gradient-to-b from-muted/30 to-background">
+      <section className={cn('pt-16 pb-12 lg:pt-20 lg:pb-16 border-b', heroBg[activeCategory])}>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             {/* Badge */}
@@ -188,21 +200,6 @@ export const Home = () => {
             <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto leading-relaxed">
               {t.home.hero.description}
             </p>
-            
-            <div className="flex flex-wrap gap-3 justify-center">
-              <Button asChild size="lg" className="gap-2 px-8">
-                <Link to="/pdf/edit">
-                  <FileEdit className="w-4 h-4" />
-                  {t.home.hero.primaryButton}
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="gap-2">
-                <Link to="/audio/convert">
-                  <Music className="w-4 h-4" />
-                  {t.home.hero.secondaryButton}
-                </Link>
-              </Button>
-            </div>
           </div>
         </div>
       </section>
@@ -242,21 +239,20 @@ export const Home = () => {
               <Link 
                 key={tool.path} 
                 to={tool.path}
-                className="group flex flex-col p-3 rounded-lg border bg-card hover:shadow-md transition-all hover:border-primary/50 hover:-translate-y-0.5"
+                className="group flex flex-row items-center gap-3 p-3 rounded-lg border bg-card hover:shadow-md transition-all hover:border-primary/50 hover:-translate-y-0.5"
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className={cn("p-2 rounded-lg shadow-sm", tool.color)}>
-                    <tool.icon className="w-4 h-4 text-white" />
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
+                <div className={cn("p-2 rounded-lg shadow-sm shrink-0", tool.color)}>
+                  <tool.icon className="w-4 h-4 text-white" />
                 </div>
-                
-                <h3 className="font-semibold text-sm mb-0.5 line-clamp-1">
-                  {tool.title}
-                </h3>
-                <p className="text-xs text-muted-foreground line-clamp-2 leading-snug">
-                  {tool.description}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm line-clamp-1">
+                    {tool.title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-2 leading-snug">
+                    {tool.description}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all shrink-0" />
               </Link>
             ))}
           </div>

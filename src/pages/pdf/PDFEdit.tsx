@@ -977,6 +977,7 @@ export const PDFEdit = () => {
   if (pages.length === 0) {
     return (
       <PDFPageLayout
+        variant="pdf"
         title={t.pdfEdit.title}
         description={t.pdfEdit.description}
         icon={FileEdit}
@@ -985,6 +986,7 @@ export const PDFEdit = () => {
       >
         <div className="space-y-4">
           <PDFDropzone
+            variant="pdf"
             inputId="pdf-edit-input"
             dropText={t.pdfToWord.dropText}
             dropSubtext={t.dropzone.multipleFiles}

@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
 import { Image as ImageIcon, Download, Lock, Unlock } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { useDragDrop } from '@/hooks/useDragDrop';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -107,31 +109,47 @@ export const ImageResize = () => {
     }
   };
 
+  const { isDragging, handleDragOver, handleDragLeave, handleDrop, handleFileInput } = useDragDrop({
+    onFilesDrop: handleFilesDrop,
+    accept: 'image/*',
+    multiple: false,
+  });
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-green-500 rounded-lg">
-            <ImageIcon className="w-6 h-6 text-white" />
-          </div>
-          {t.imageResize.title}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {t.imageResize.description}
-        </p>
-      </div>
+    <PDFPageLayout
+      variant="image"
+      title={t.imageResize.title}
+      description={t.imageResize.description}
+      icon={ImageIcon}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-4">
+        <PDFDropzone
+          variant="image"
+          inputId="image-resize-input"
+          dropText={t.dropzone.dropTextActive}
+          dropSubtext={t.dropzone.singleFile}
+          isDragOver={isDragging}
+          onDrop={(e) => {
+            e.preventDefault();
+            handleDrop(e);
+          }}
+          onDragOver={(e) => { e.preventDefault(); handleDragOver(e); }}
+          onDragLeave={(e) => { e.preventDefault(); handleDragLeave(e); }}
+          onFileInput={handleFileInput}
+          accept="image/*"
+          multiple={false}
+        />
 
-      <FileDropzone
-        onFilesDrop={handleFilesDrop}
-        onClear={handleClear}
-        accept="image/*"
-        multiple={false}
-        selectedFiles={file ? [file] : []}
-      />
-
-      {file && (
-        <Card className="mt-6">
-          <CardContent className="p-6">
+        {file && (
+          <>
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={handleClear}>
+                {t.dropzone.clear}
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
                 <Label className="mb-2 block">{t.imageResize.originalSize}</Label>
@@ -213,9 +231,11 @@ export const ImageResize = () => {
                 </>
               )}
             </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </PDFPageLayout>
   );
 };

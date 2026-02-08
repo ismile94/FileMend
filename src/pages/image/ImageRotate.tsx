@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react';
-import { RotateCw, Download, Image as ImageIcon, Redo2, Undo2 } from 'lucide-react';
-import { FileDropzone } from '@/components/FileDropzone';
+import { RotateCw, Download, Redo2, Undo2 } from 'lucide-react';
+import { PDFPageLayout } from '@/components/pdf/PDFPageLayout';
+import { PDFDropzone } from '@/components/pdf/PDFDropzone';
 import { ProgressBar } from '@/components/ProgressBar';
+import { useDragDrop } from '@/hooks/useDragDrop';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useImage } from '@/hooks/useImage';
 import { useToast } from '@/hooks/use-toast';
-import { formatFileSize } from '@/utils/fileHelpers';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/contexts/LanguageContext';
 
@@ -85,31 +86,47 @@ export const ImageRotate = () => {
     { value: 270, label: t.imageRotate.counterClockwise90, icon: Undo2 },
   ];
 
+  const { isDragging, handleDragOver, handleDragLeave, handleDrop, handleFileInput } = useDragDrop({
+    onFilesDrop: handleFilesDrop,
+    accept: 'image/*',
+    multiple: false,
+  });
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <div className="p-2 bg-green-500 rounded-lg">
-            <RotateCw className="w-6 h-6 text-white" />
-          </div>
-          {t.imageRotate.title}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {t.imageRotate.description}
-        </p>
-      </div>
+    <PDFPageLayout
+      variant="image"
+      title={t.imageRotate.title}
+      description={t.imageRotate.description}
+      icon={RotateCw}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-4">
+        <PDFDropzone
+          variant="image"
+          inputId="image-rotate-input"
+          dropText={t.dropzone.dropTextActive}
+          dropSubtext={t.dropzone.singleFile}
+          isDragOver={isDragging}
+          onDrop={(e) => {
+            e.preventDefault();
+            handleDrop(e);
+          }}
+          onDragOver={(e) => { e.preventDefault(); handleDragOver(e); }}
+          onDragLeave={(e) => { e.preventDefault(); handleDragLeave(e); }}
+          onFileInput={handleFileInput}
+          accept="image/*"
+          multiple={false}
+        />
 
-      <FileDropzone
-        onFilesDrop={handleFilesDrop}
-        onClear={handleClear}
-        accept="image/*"
-        multiple={false}
-        selectedFiles={file ? [file] : []}
-      />
-
-      {file && (
-        <Card className="mt-6">
-          <CardContent className="p-6">
+        {file && (
+          <>
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={handleClear}>
+                {t.dropzone.clear}
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6">
             {preview && (
               <div className="mb-6">
                 <Label className="mb-2 block">{t.imageConvert.preview}</Label>
@@ -170,9 +187,11 @@ export const ImageRotate = () => {
                 </>
               )}
             </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </PDFPageLayout>
   );
 };

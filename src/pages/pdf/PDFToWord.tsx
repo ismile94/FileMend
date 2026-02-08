@@ -256,6 +256,7 @@ export const PDFtoWord = () => {
 
   return (
     <PDFPageLayout
+      variant="pdf"
       title={t.pdfToWord.title}
       description={t.pdfToWord.description}
       icon={FileUp}
@@ -263,6 +264,7 @@ export const PDFtoWord = () => {
     >
       {!file ? (
         <PDFDropzone
+          variant="pdf"
           inputId="pdf-to-word-input"
           dropText={t.pdfToWord.dropText}
           dropSubtext={t.pdfToWord.maxSize.replace('{max}', String(MAX_FILE_SIZE_MB))}

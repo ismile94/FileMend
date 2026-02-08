@@ -104,7 +104,7 @@ export const Navigation = () => {
       <div className="container mx-auto px-4 max-w-6xl flex items-center justify-between">
         {/* Logo - masaüstü ve mobil header'da */}
         <Link to="/" className="flex items-center group shrink-0">
-          <img src={logoSrc} alt="FileMend" className="h-[2.25rem] w-auto max-w-[140px] object-contain" />
+          <img src={logoSrc} alt="FileMend" className="h-[2.8125rem] w-auto max-w-[175px] object-contain" />
         </Link>
 
         {/* Desktop: PDF, Audio, Image (renkli), About */}
@@ -127,11 +127,6 @@ export const Navigation = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link to={`/?category=${cat.id}`} className="cursor-pointer">
-                    {t.nav.home ?? 'Anasayfa'}
-                  </Link>
-                </DropdownMenuItem>
                 {cat.children.map((child) => (
                   <DropdownMenuItem key={child.path} asChild>
                     <Link
@@ -162,7 +157,7 @@ export const Navigation = () => {
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button variant="ghost" size="sm" className="gap-2 scale-[1.4] origin-right">
                 <span className="text-sm font-medium">{t.language.flags[language]}</span>
                 <ChevronDown className="w-3 h-3" />
               </Button>
