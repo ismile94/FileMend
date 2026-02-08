@@ -25,12 +25,6 @@ import { saveAs } from 'file-saver';
 
 type CompressionLevel = 'low' | 'medium' | 'extreme';
 
-const COMPRESSION_DESCRIPTIONS: Record<CompressionLevel, string> = {
-  low: 'En yüksek kalite, en az sıkıştırma',
-  medium: 'Dengeli kalite ve boyut',
-  extreme: 'Maksimum sıkıştırma',
-};
-
 // Minimum dosya boyutu: 500KB
 const MIN_FILE_SIZE = 500 * 1024;
 
@@ -46,7 +40,7 @@ interface FileStatus {
   progress?: number;
   compressionLevel?: CompressionLevel;
   wasAlreadyOptimized?: boolean;
-  tooSmall?: boolean; // 500KB altı flag'i
+  tooSmall?: boolean;
   stats?: {
     textPages?: number;
     imagePages?: number;
@@ -72,7 +66,6 @@ export const PDFCompress = () => {
     return files.filter(f => !f.isProcessing && !f.compressedBlob && !f.tooSmall && !f.error);
   }, [files]);
 
-  // Dosya seçildiğinde
   const handleFilesDrop = useCallback((fileList: FileList) => {
     const pdfFiles = Array.from(fileList).filter(
       f => f.type === 'application/pdf' || f.name.endsWith('.pdf')
@@ -87,7 +80,6 @@ export const PDFCompress = () => {
       return;
     }
 
-    // Her dosya için 500KB kontrolü
     const processedFiles = pdfFiles.map(file => {
       const isTooSmall = file.size < MIN_FILE_SIZE;
       
@@ -109,7 +101,6 @@ export const PDFCompress = () => {
       };
     });
 
-    // Duplicate önleme
     const newFiles = processedFiles
       .filter(pdf => !files.some(existing => 
         existing.file.name === pdf.file.name && existing.file.size === pdf.file.size
@@ -125,7 +116,6 @@ export const PDFCompress = () => {
     setFiles(prev => [...prev, ...newFiles]);
   }, [files, toast, t.messages.error, t.messages.pleaseUpload, t.messages.pdfFile, t.messages.success, t.pdfCompress.duplicateSkipped]);
 
-  // Backend health check
   useEffect(() => {
     const checkBackendHealth = async () => {
       const isHealthy = await checkHealth();
@@ -148,11 +138,9 @@ export const PDFCompress = () => {
     ));
 
     try {
-      // Backend API'sini kullan
       const result = await compressPDF(
         fileStatus.file,
         currentLevel,
-        // Progress callback
         (progress) => {
           setFiles(prev => prev.map(f =>
             f.id === fileId ? { ...f, progress: Math.round(progress) } : f
@@ -160,13 +148,12 @@ export const PDFCompress = () => {
         }
       );
 
-      // Yeni header'ları işle
+      // Stats (Ghostscript'te olmayabilir)
       const textPages = result.stats?.textPages || 0;
       const imagePages = result.stats?.imagePages || 0;
       const hybridPages = result.stats?.hybridPages || 0;
       const imagesCompressed = result.stats?.imagesCompressed || 0;
 
-      // State'i güncelle
       const size = result.compressedSize > 0 ? result.compressedSize : result.blob.size;
       const ratio = result.originalSize > 0
         ? ((result.originalSize - size) / result.originalSize) * 100
@@ -183,31 +170,34 @@ export const PDFCompress = () => {
               progress: 100,
               compressionLevel: currentLevel,
               wasAlreadyOptimized: result.wasAlreadyOptimized,
-              stats: {
+              stats: textPages > 0 || imagePages > 0 || hybridPages > 0 ? {
                 textPages,
                 imagePages,
                 hybridPages,
                 imagesCompressed
-              }
+              } : undefined
             }
           : f
       ));
 
-      // Bilgilendirme mesajı
       if (result.wasAlreadyOptimized) {
         toast({
           title: t.pdfCompress.info,
-          description: `${fileStatus.file.name} zaten optimize edilmiş. Orijinal dosya korundu.`,
+          description: `${fileStatus.file.name} ${t.pdfCompress.alreadyOptimizedMessage}`,
         });
       } else {
-        const levelLabel = currentLevel === 'low' ? 'Düşük' : currentLevel === 'medium' ? 'Orta' : 'Yüksek';
+        const levelLabel = currentLevel === 'low' ? t.pdfCompress.levelLow : currentLevel === 'medium' ? t.pdfCompress.levelMedium : t.pdfCompress.levelHigh;
+        
+        // Ghostscript kullanıldığında stats olmayabilir
         const modeInfo = hybridPages > 0 
           ? `${textPages} metin, ${hybridPages} hibrit, ${imagePages} görsel sayfa`
-          : `${textPages} metin, ${imagePages} görsel sayfa`;
+          : textPages > 0 || imagePages > 0
+          ? `${textPages} metin, ${imagePages} görsel sayfa`
+          : '';
 
         toast({
           title: t.messages.success,
-          description: `${fileStatus.file.name} - %${Math.round(ratio)} küçültme (${levelLabel} - ${modeInfo})`,
+          description: `${fileStatus.file.name} - %${Math.round(ratio)} küçültme${modeInfo ? ` (${levelLabel} - ${modeInfo})` : ` (${levelLabel})`}`,
         });
       }
     } catch (error) {
@@ -216,7 +206,6 @@ export const PDFCompress = () => {
       let errorMessage = t.pdfCompress.unknownError;
 
       if (error instanceof APIError) {
-        // error.data'yı unknown olarak al ve type guard kullan
         const errorData = error.data as { code?: string; message?: string } | undefined;
         
         if (error.status === 400 && errorData?.code === 'FILE_TOO_SMALL') {
@@ -234,9 +223,9 @@ export const PDFCompress = () => {
           });
           return;
         } else if (error.status === 413) {
-          errorMessage = 'Dosya çok büyük (max 50MB)';
+          errorMessage = t.pdfCompress.errors.fileTooLarge;
         } else if (error.status === 408) {
-          errorMessage = 'İstek zaman aşımına uğradı';
+          errorMessage = t.pdfCompress.errors.requestTimeout;
         } else {
           errorMessage = error.message;
         }
@@ -258,7 +247,6 @@ export const PDFCompress = () => {
     }
   };
 
-  // Toplu sıkıştırma
   const compressAllFiles = async () => {
     const filesToCompress = getFilesToCompress();
     
@@ -295,7 +283,6 @@ export const PDFCompress = () => {
     });
   };
 
-  // Dosya silme
   const removeFile = (id: string, skipConfirmation = false) => {
     if (!skipConfirmation && !rememberDeleteChoice) {
       setShowDeleteConfirm(id);
@@ -311,7 +298,6 @@ export const PDFCompress = () => {
     });
   };
 
-  // Tek dosya indirme
   const downloadSingleFile = (fileId: string) => {
     const fileStatus = files.find(f => f.id === fileId);
     if (!fileStatus?.compressedBlob) return;
@@ -320,7 +306,6 @@ export const PDFCompress = () => {
     const a = document.createElement('a');
     a.href = url;
     
-    // Eğer zaten optimize edilmişse orijinal ismi kullan
     const filename = fileStatus.wasAlreadyOptimized 
       ? fileStatus.file.name 
       : `${t.pdfCompress.downloadPrefix}${fileStatus.file.name}`;
@@ -337,7 +322,6 @@ export const PDFCompress = () => {
     });
   };
 
-  // ZIP olarak indir
   const downloadAllAsZip = async () => {
     const compressedFiles = files.filter(f => f.compressedBlob);
     if (compressedFiles.length === 0) {
@@ -376,7 +360,6 @@ export const PDFCompress = () => {
     }
   };
 
-  // İstatistikler
   const getStats = () => {
     const totalOriginal = files.reduce((sum, f) => sum + f.originalSize, 0);
     const totalCompressed = files.reduce((sum, f) => sum + (f.compressedSize || 0), 0);
@@ -414,11 +397,10 @@ export const PDFCompress = () => {
         <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg flex items-start gap-2">
           <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
           <div className="text-sm text-blue-800 dark:text-blue-200">
-            <span className="font-semibold">Bilgi:</span> Sadece 500KB üzerindeki PDF dosyaları sıkıştırılır. 
-            Daha küçük dosyalar zaten optimize kabul edilir.
+            <span className="font-semibold">{t.pdfCompress.infoBannerTitle}</span> {t.pdfCompress.infoBannerText}
             {hasSmallFiles && (
               <span className="block mt-1 text-blue-600 dark:text-blue-400">
-                ⚠️ {stats.tooSmallCount} dosya 500KB altında olduğu için atlandı.
+                {t.pdfCompress.infoBannerSkipped.replace('{count}', String(stats.tooSmallCount))}
               </span>
             )}
           </div>
@@ -456,9 +438,8 @@ export const PDFCompress = () => {
       {/* Compression Level Selection + How it Works */}
       {files.length > 0 && (
         <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          {/* Compression Level Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Sıkıştırma Seviyesi:</span>
+            <span className="text-sm font-medium text-muted-foreground">{t.pdfCompress.compressionLevelLabel}</span>
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               <button
                 type="button"
@@ -470,7 +451,7 @@ export const PDFCompress = () => {
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                Düşük
+                {t.pdfCompress.levelLow}
               </button>
               <button
                 type="button"
@@ -482,7 +463,7 @@ export const PDFCompress = () => {
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                Orta
+                {t.pdfCompress.levelMedium}
               </button>
               <button
                 type="button"
@@ -494,15 +475,14 @@ export const PDFCompress = () => {
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                Yüksek
+                {t.pdfCompress.levelHigh}
               </button>
             </div>
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              ({COMPRESSION_DESCRIPTIONS[compressionLevel]})
+              ({t.pdfCompress.levelDescriptions[compressionLevel]})
             </span>
           </div>
 
-          {/* How it Works */}
           <Dialog>
             <DialogTrigger asChild>
               <button
@@ -514,47 +494,36 @@ export const PDFCompress = () => {
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Sıkıştırma Nasıl Çalışır?</DialogTitle>
+                <DialogTitle>{t.pdfCompress.howItWorksModalTitle}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 text-sm text-muted-foreground">
-                <p>
-                  Akıllı nesne-tabanlı sıkıştırma: Her PDF sayfası piksel-piksel analiz edilir ve içerik türüne göre optimize edilir:
-                </p>
+                <p>{t.pdfCompress.howItWorksIntroSmart}</p>
                 <div className="space-y-3">
                   <div>
-                    <p className="font-semibold text-foreground mb-1">📝 Metin Sayfaları (Kayıpsız)</p>
-                    <p className="text-xs">
-                      Sadece metin içeren sayfalar olduğu gibi korunur. Yazılar tamamen seçilebilir ve vektör kalitesindedir.
-                    </p>
+                    <p className="font-semibold text-foreground mb-1">{t.pdfCompress.textPagesTitle}</p>
+                    <p className="text-xs">{t.pdfCompress.textPagesDesc}</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground mb-1">🖼️ Görsel Sayfaları (Sıkıştırılmış)</p>
-                    <p className="text-xs">
-                      Sadece görsel içeren sayfalar JPEG formatına dönüştürülür. Kalite seviyesine göre optimize edilir.
-                    </p>
+                    <p className="font-semibold text-foreground mb-1">{t.pdfCompress.imagePagesTitle}</p>
+                    <p className="text-xs">{t.pdfCompress.imagePagesDesc}</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground mb-1">📊 Hibrit Sayfalar (Akıllı)</p>
-                    <p className="text-xs">
-                      Hem metin hem görsel içeren sayfalarda metin seçilebilir kalır, sadece görseller ayrı ayrı sıkıştırılır. 
-                      Tablolar ve raporlar bozulmadan kalite düşürülür.
-                    </p>
+                    <p className="font-semibold text-foreground mb-1">{t.pdfCompress.hybridPagesTitle}</p>
+                    <p className="text-xs">{t.pdfCompress.hybridPagesDesc}</p>
                   </div>
                 </div>
                 
                 <div className="bg-amber-50 dark:bg-amber-950/20 p-2 rounded border border-amber-200 dark:border-amber-900">
-                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">⚠️ Minimum Boyut Şartı</p>
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    500KB altındaki dosyalar otomatik olarak "zaten optimize" kabul edilir ve işleme alınmaz.
-                  </p>
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">{t.pdfCompress.minSizeTitle}</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">{t.pdfCompress.minSizeText}</p>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold">Kalite Seviyeleri:</p>
+                  <p className="text-xs font-semibold">{t.pdfCompress.qualityLevelsTitle}</p>
                   <ul className="list-disc list-inside text-xs space-y-0.5 ml-1">
-                    <li><strong>Düşük:</strong> %92 kalite - Metin ağırlıklı dokümanlar için ideal</li>
-                    <li><strong>Orta:</strong> %80 kalite - Dengeli kullanım</li>
-                    <li><strong>Yüksek:</strong> %60 kalite - Maksimum boyut tasarrufu</li>
+                    <li>{t.pdfCompress.qualityLowBullet}</li>
+                    <li>{t.pdfCompress.qualityMediumBullet}</li>
+                    <li>{t.pdfCompress.qualityHighBullet}</li>
                   </ul>
                 </div>
               </div>
@@ -629,7 +598,7 @@ export const PDFCompress = () => {
                 <Minimize2 className="w-4 h-4 sm:mr-1" />
                 <span className="hidden sm:inline">
                   {isCompressingAll ? t.pdfCompress.compressing : 
-                   !canCompress ? 'Sıkıştırılabilir dosya yok' : t.pdfCompress.compressAll}
+                   !canCompress ? t.pdfCompress.noCompressibleFiles : t.pdfCompress.compressAll}
                 </span>
               </Button>
               {files.some(f => f.compressedBlob) && (
@@ -733,45 +702,44 @@ export const PDFCompress = () => {
                               )}
                               {wasAlreadyOptimized && (
                                 <span className="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
-                                  Optimize
+                                  {t.pdfCompress.optimized}
                                 </span>
                               )}
                               {fileLevel && !wasAlreadyOptimized && (
                                 <span className="text-xs text-muted-foreground">
-                                  · {fileLevel === 'low' ? 'Düşük' : fileLevel === 'medium' ? 'Orta' : 'Yüksek'}
+                                  · {fileLevel === 'low' ? t.pdfCompress.levelLow : fileLevel === 'medium' ? t.pdfCompress.levelMedium : t.pdfCompress.levelHigh}
                                 </span>
                               )}
                             </>
                           )}
                         </div>
 
-                        {/* Sayfa istatistikleri (sıkıştırma sonrası) */}
+                        {/* Sayfa istatistikleri (sadece varsa göster) */}
                         {compressedBlob && stats && (
                           <div className="flex flex-wrap gap-1 mt-1">
                             {(stats.textPages ?? 0) > 0 && (
                               <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
-                                {stats.textPages} metin
+                                {t.pdfCompress.statsTextPages.replace('{count}', String(stats.textPages))}
                               </span>
                             )}
                             {(stats.hybridPages ?? 0) > 0 && (
                               <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
-                                {stats.hybridPages} hibrit
+                                {t.pdfCompress.statsHybridPages.replace('{count}', String(stats.hybridPages))}
                               </span>
                             )}
                             {(stats.imagePages ?? 0) > 0 && (
                               <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded">
-                                {stats.imagePages} görsel
+                                {t.pdfCompress.statsImagePages.replace('{count}', String(stats.imagePages))}
                               </span>
                             )}
                             {(stats.imagesCompressed ?? 0) > 0 && (
                               <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
-                                {stats.imagesCompressed} görsel optimize
+                                {t.pdfCompress.statsImagesCompressed.replace('{count}', String(stats.imagesCompressed))}
                               </span>
                             )}
                           </div>
                         )}
 
-                        {/* Progress Bar */}
                         {isProcessing && (
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
@@ -782,7 +750,6 @@ export const PDFCompress = () => {
                           </div>
                         )}
 
-                        {/* Error */}
                         {error && !tooSmall && (
                           <div className="flex items-center gap-1 text-xs text-red-500 bg-red-50 dark:bg-red-950/20 p-1.5 rounded">
                             <AlertCircle className="w-3 h-3 shrink-0" />
@@ -790,15 +757,13 @@ export const PDFCompress = () => {
                           </div>
                         )}
 
-                        {/* Too Small Warning */}
                         {tooSmall && (
                           <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded">
                             <Info className="w-3 h-3 shrink-0" />
-                            500KB altındaki dosyalar sıkıştırılamaz
+                            {t.pdfCompress.tooSmallWarning}
                           </div>
                         )}
 
-                        {/* Success */}
                         {compressedBlob && !isProcessing && !wasAlreadyOptimized && (
                           <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-950/20 p-1.5 rounded">
                             <CheckCircle className="w-3 h-3" />
@@ -806,11 +771,10 @@ export const PDFCompress = () => {
                           </div>
                         )}
 
-                        {/* Already Optimized */}
                         {wasAlreadyOptimized && (
                           <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded">
                             <AlertCircle className="w-3 h-3" />
-                            Dosya zaten optimize
+                            {t.pdfCompress.alreadyOptimizedCard}
                           </div>
                         )}
                       </div>
