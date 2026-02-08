@@ -25,7 +25,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS - Vercel deployment için
+# CORS - Vercel deployment için (expose_headers: frontend custom header'ları okuyabilsin)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -41,6 +41,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "X-Original-Size",
+        "X-Compressed-Size",
+        "X-Compression-Ratio",
+        "X-Already-Optimized",
+        "X-Text-Heavy-Pages",
+        "X-Image-Heavy-Pages",
+        "X-Compression-Level",
+    ],
 )
 
 
@@ -74,32 +83,56 @@ def compress_image(image_bytes: bytes, quality: int, scale: float = 1.0) -> byte
 
 
 def analyze_page_content(page) -> dict:
-    """Analyze page to determine if it's text-heavy or image-heavy"""
+    """
+    Sayfa içeriğini analiz et: metin alanı oranına göre text-heavy / image-heavy.
+    Küçük logo + çok metin (banka ekstresi vb.) = metin ağırlıklı, kayıpsız kopyala.
+    """
     try:
-        text = page.get_text()
-        text_length = len(text.strip())
-        
-        # Görsel sayısı
-        image_list = page.get_images()
-        image_count = len(image_list)
-        
-        # Sayfa boyutu
         rect = page.rect
         page_area = rect.width * rect.height
-        
-        # Basit sınıflandırma: 
-        # - Eğer 100'den fazla karakter varsa ve görsel yoksa -> text-heavy
-        # - Eğer görsel varsa -> image-heavy
-        is_text_heavy = text_length > 100 and image_count == 0
-        
+        if page_area <= 0:
+            return {'is_text_heavy': True, 'text_length': 0, 'image_count': 0, 'text_area_ratio': 0}
+
+        text = page.get_text()
+        text_length = len(text.strip())
+        image_list = page.get_images()
+        image_count = len(image_list)
+
+        # Metin bloklarının toplam alanı (bbox'lardan)
+        text_area = 0.0
+        try:
+            text_dict = page.get_text("dict")
+            for block in text_dict.get("blocks", []):
+                bbox = block.get("bbox")
+                if bbox and len(bbox) >= 4:
+                    w = max(0, bbox[2] - bbox[0])
+                    h = max(0, bbox[3] - bbox[1])
+                    text_area += w * h
+        except Exception:
+            pass
+
+        text_area_ratio = text_area / page_area if page_area else 0
+
+        # Metin ağırlıklı = sayfanın önemli kısmı metin (örn. %10+) VEYA uzun metin ve az/orta görsel
+        # Böylece banka ekstresi (küçük logo + çok metin) kayıpsız kalır
+        if text_area_ratio >= 0.10:
+            is_text_heavy = True
+        elif text_length > 300 and image_count <= 2:
+            is_text_heavy = True
+        elif text_length > 100 and image_count == 0:
+            is_text_heavy = True
+        else:
+            is_text_heavy = False
+
         return {
             'is_text_heavy': is_text_heavy,
             'text_length': text_length,
-            'image_count': image_count
+            'image_count': image_count,
+            'text_area_ratio': text_area_ratio,
         }
     except Exception as e:
         logger.error(f"Page analysis error: {e}")
-        return {'is_text_heavy': False, 'text_length': 0, 'image_count': 0}
+        return {'is_text_heavy': False, 'text_length': 0, 'image_count': 0, 'text_area_ratio': 0}
 
 
 @app.get("/")
@@ -125,11 +158,11 @@ async def compress_pdf(
     - level: Compression level (low/medium/extreme)
     """
     
-    # Compression settings
+    # Compression settings: Low=kalite öncelikli, Medium=dengeli, High=maksimum sıkıştırma
     settings = {
-        'low': {'quality': 85, 'scale': 1.0, 'min_compression': 3},
-        'medium': {'quality': 65, 'scale': 1.0, 'min_compression': 5},
-        'extreme': {'quality': 45, 'scale': 0.85, 'min_compression': 10}
+        'low': {'quality': 92, 'scale': 1.0, 'min_compression': 2},
+        'medium': {'quality': 80, 'scale': 1.0, 'min_compression': 4},
+        'extreme': {'quality': 55, 'scale': 0.92, 'min_compression': 8}
     }
     
     if level not in settings:

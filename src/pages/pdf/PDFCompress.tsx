@@ -134,14 +134,19 @@ export const PDFCompress = () => {
         }
       );
 
-      // State'i güncelle
+      // State'i güncelle (sıkıştırılmış boyut her zaman gösterilsin; header yoksa blob.size)
+      const size = result.compressedSize > 0 ? result.compressedSize : result.blob.size;
+      const ratio = result.originalSize > 0
+        ? ((result.originalSize - size) / result.originalSize) * 100
+        : result.compressionRatio;
+
       setFiles(prev => prev.map(f =>
         f.id === fileId
           ? {
               ...f,
               compressedBlob: result.blob,
-              compressedSize: result.compressedSize,
-              compressionRatio: result.compressionRatio,
+              compressedSize: size,
+              compressionRatio: ratio,
               isProcessing: false,
               progress: 100,
               compressionLevel: currentLevel,
@@ -164,7 +169,7 @@ export const PDFCompress = () => {
 
         toast({
           title: t.messages.success,
-          description: `${fileStatus.file.name} - %${Math.round(result.compressionRatio)} küçültme (${levelLabel} - ${modeInfo})`,
+          description: `${fileStatus.file.name} - %${Math.round(ratio)} küçültme (${levelLabel} - ${modeInfo})`,
         });
       }
     } catch (error) {
@@ -430,7 +435,7 @@ export const PDFCompress = () => {
               </DialogHeader>
               <div className="space-y-4 text-sm text-muted-foreground">
                 <p>
-                  PDF'leriniz sayfa sayfa analiz edilir ve her sayfa içeriğine göre en uygun yöntem uygulanır.
+                  Her sayfa metin/görsel oranına göre analiz edilir: metin ağırlıklı sayfalar (ekstre, rapor, küçük logolu belgeler) kayıpsız kopyalanır ve yazılar seçilebilir kalır; sadece görsel ağırlıklı sayfalar sıkıştırılır.
                 </p>
                 <div className="space-y-3">
                   <div>
@@ -446,9 +451,9 @@ export const PDFCompress = () => {
                       Resim ve grafikler içeren sayfalar seçilen seviyeye göre sıkıştırılır:
                     </p>
                     <ul className="list-disc list-inside text-xs mt-1 ml-2 space-y-0.5">
-                      <li><strong>Düşük:</strong> %85 kalite - En yüksek görsel kalite</li>
-                      <li><strong>Orta:</strong> %65 kalite - Dengeli</li>
-                      <li><strong>Yüksek:</strong> %45 kalite - Maksimum sıkıştırma</li>
+                      <li><strong>Düşük:</strong> %92 kalite - Kayba yakın minimum sıkıştırma</li>
+                      <li><strong>Orta:</strong> %80 kalite - Dengeli kalite ve boyut</li>
+                      <li><strong>Yüksek:</strong> %55 kalite - Maksimum sıkıştırma</li>
                     </ul>
                   </div>
                 </div>
@@ -605,14 +610,14 @@ export const PDFCompress = () => {
                         
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>{formatFileSize(originalSize)}</span>
-                          {compressedSize && (
+                          {(compressedBlob != null) && (
                             <>
                               <span className="text-slate-300">→</span>
                               <span className={cn(
                                 "font-medium",
                                 wasAlreadyOptimized ? "text-amber-600" : "text-green-600"
                               )}>
-                                {formatFileSize(compressedSize)}
+                                {formatFileSize(compressedSize ?? compressedBlob.size)}
                               </span>
                               {!wasAlreadyOptimized && compressionRatio !== undefined && compressionRatio > 0 && (
                                 <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1 py-0.5 rounded-full">

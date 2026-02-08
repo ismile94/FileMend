@@ -115,10 +115,16 @@ export async function compressPDF(
       );
     }
 
+    const blob = await response.blob();
+
+    if (onProgress) {
+      onProgress(100);
+    }
+
     const originalSize = parseInt(
       response.headers.get('X-Original-Size') || '0'
     );
-    const compressedSize = parseInt(
+    const compressedSizeFromHeader = parseInt(
       response.headers.get('X-Compressed-Size') || '0'
     );
     const compressionRatio = parseFloat(
@@ -135,11 +141,9 @@ export async function compressPDF(
     const compressionLevel =
       response.headers.get('X-Compression-Level') || level;
 
-    const blob = await response.blob();
-
-    if (onProgress) {
-      onProgress(100);
-    }
+    // CORS'da header okunamıyorsa blob boyutunu kullan (sıkıştırılmış boyut her zaman gösterilsin)
+    const compressedSize =
+      compressedSizeFromHeader > 0 ? compressedSizeFromHeader : blob.size;
 
     return {
       blob,
