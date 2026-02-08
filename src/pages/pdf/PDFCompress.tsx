@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Minimize2, FileText, Trash2, Download, CheckCircle, AlertCircle, Plus } from 'lucide-react';
+import { Minimize2, FileText, Trash2, Download, CheckCircle, AlertCircle, Plus, Info } from 'lucide-react';
 
 import { ProgressBar } from '@/components/ProgressBar';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,9 @@ const COMPRESSION_DESCRIPTIONS: Record<CompressionLevel, string> = {
   extreme: 'Maksimum sıkıştırma',
 };
 
+// Minimum dosya boyutu: 500KB
+const MIN_FILE_SIZE = 500 * 1024;
+
 interface FileStatus {
   file: File;
   id: string;
@@ -42,7 +45,14 @@ interface FileStatus {
   error?: string;
   progress?: number;
   compressionLevel?: CompressionLevel;
-  wasAlreadyOptimized?: boolean; // Zaten optimize mi?
+  wasAlreadyOptimized?: boolean;
+  tooSmall?: boolean; // 500KB altı flag'i
+  stats?: {
+    textPages?: number;
+    imagePages?: number;
+    hybridPages?: number;
+    imagesCompressed?: number;
+  };
 }
 
 export const PDFCompress = () => {
@@ -59,7 +69,7 @@ export const PDFCompress = () => {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const getFilesToCompress = useCallback(() => {
-    return files.filter(f => !f.isProcessing && !f.compressedBlob);
+    return files.filter(f => !f.isProcessing && !f.compressedBlob && !f.tooSmall && !f.error);
   }, [files]);
 
   // Dosya seçildiğinde
@@ -77,19 +87,35 @@ export const PDFCompress = () => {
       return;
     }
 
-    // Duplicate önleme
-    const newFiles = pdfFiles
-      .filter(pdf => !files.some(existing => 
-        existing.file.name === pdf.name && existing.file.size === pdf.size
-      ))
-      .map(file => ({
+    // Her dosya için 500KB kontrolü
+    const processedFiles = pdfFiles.map(file => {
+      const isTooSmall = file.size < MIN_FILE_SIZE;
+      
+      if (isTooSmall) {
+        toast({
+          title: "Dosya çok küçük",
+          description: `${file.name} (${formatFileSize(file.size)}) - Sıkıştırma için minimum 500KB gereklidir.`,
+          variant: 'default',
+        });
+      }
+      
+      return {
         file,
         id: Math.random().toString(36).substr(2, 9),
         originalSize: file.size,
         isProcessing: false,
-      }));
+        tooSmall: isTooSmall,
+        error: isTooSmall ? 'Dosya boyutu 500KB altında olduğu için sıkıştırılamaz' : undefined,
+      };
+    });
 
-    if (newFiles.length < pdfFiles.length) {
+    // Duplicate önleme
+    const newFiles = processedFiles
+      .filter(pdf => !files.some(existing => 
+        existing.file.name === pdf.file.name && existing.file.size === pdf.file.size
+      ));
+
+    if (newFiles.length < processedFiles.length) {
       toast({
         title: t.messages.success,
         description: t.pdfCompress.duplicateSkipped,
@@ -113,7 +139,7 @@ export const PDFCompress = () => {
 
   const compressSingleFile = async (fileId: string, level?: CompressionLevel) => {
     const fileStatus = files.find(f => f.id === fileId);
-    if (!fileStatus) return;
+    if (!fileStatus || fileStatus.tooSmall) return;
 
     const currentLevel = level || compressionLevel;
 
@@ -134,7 +160,13 @@ export const PDFCompress = () => {
         }
       );
 
-      // State'i güncelle (sıkıştırılmış boyut her zaman gösterilsin; header yoksa blob.size)
+      // Yeni header'ları işle
+      const textPages = result.stats?.textPages || 0;
+      const imagePages = result.stats?.imagePages || 0;
+      const hybridPages = result.stats?.hybridPages || 0;
+      const imagesCompressed = result.stats?.imagesCompressed || 0;
+
+      // State'i güncelle
       const size = result.compressedSize > 0 ? result.compressedSize : result.blob.size;
       const ratio = result.originalSize > 0
         ? ((result.originalSize - size) / result.originalSize) * 100
@@ -151,6 +183,12 @@ export const PDFCompress = () => {
               progress: 100,
               compressionLevel: currentLevel,
               wasAlreadyOptimized: result.wasAlreadyOptimized,
+              stats: {
+                textPages,
+                imagePages,
+                hybridPages,
+                imagesCompressed
+              }
             }
           : f
       ));
@@ -163,9 +201,9 @@ export const PDFCompress = () => {
         });
       } else {
         const levelLabel = currentLevel === 'low' ? 'Düşük' : currentLevel === 'medium' ? 'Orta' : 'Yüksek';
-        const modeInfo = result.imageHeavyPages > 0
-          ? `${result.textHeavyPages} sayfa korundu, ${result.imageHeavyPages} sayfa sıkıştırıldı`
-          : 'Metin sayfaları optimize edildi';
+        const modeInfo = hybridPages > 0 
+          ? `${textPages} metin, ${hybridPages} hibrit, ${imagePages} görsel sayfa`
+          : `${textPages} metin, ${imagePages} görsel sayfa`;
 
         toast({
           title: t.messages.success,
@@ -178,7 +216,24 @@ export const PDFCompress = () => {
       let errorMessage = t.pdfCompress.unknownError;
 
       if (error instanceof APIError) {
-        if (error.status === 413) {
+        // error.data'yı unknown olarak al ve type guard kullan
+        const errorData = error.data as { code?: string; message?: string } | undefined;
+        
+        if (error.status === 400 && errorData?.code === 'FILE_TOO_SMALL') {
+          errorMessage = errorData?.message || 'Dosya boyutu çok küçük (min 500KB)';
+          setFiles(prev => prev.map(f =>
+            f.id === fileId
+              ? { ...f, isProcessing: false, error: errorMessage, tooSmall: true, progress: 0 }
+              : f
+          ));
+          
+          toast({
+            title: "Sıkıştırma yapılamadı",
+            description: errorMessage,
+            variant: 'default',
+          });
+          return;
+        } else if (error.status === 413) {
           errorMessage = 'Dosya çok büyük (max 50MB)';
         } else if (error.status === 408) {
           errorMessage = 'İstek zaman aşımına uğradı';
@@ -208,10 +263,20 @@ export const PDFCompress = () => {
     const filesToCompress = getFilesToCompress();
     
     if (filesToCompress.length === 0) {
-      toast({
-        title: t.pdfCompress.info,
-        description: t.pdfCompress.noFilesToCompress,
-      });
+      const hasSmallFiles = files.some(f => f.tooSmall && !f.compressedBlob);
+      
+      if (hasSmallFiles) {
+        toast({
+          title: "Sıkıştırılabilir dosya yok",
+          description: "Tüm dosyalar 500KB altında olduğu için sıkıştırılamaz. Sadece 500KB üzerindeki dosyalar sıkıştırılabilir.",
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: t.pdfCompress.info,
+          description: t.pdfCompress.noFilesToCompress,
+        });
+      }
       return;
     }
 
@@ -327,12 +392,14 @@ export const PDFCompress = () => {
       fileCount: files.length,
       compressedCount: files.filter(f => f.compressedBlob).length,
       alreadyOptimizedCount: files.filter(f => f.wasAlreadyOptimized).length,
+      tooSmallCount: files.filter(f => f.tooSmall).length,
     };
   };
 
   const stats = getStats();
   const filesToCompress = getFilesToCompress();
   const canCompress = filesToCompress.length > 0;
+  const hasSmallFiles = files.some(f => f.tooSmall && !f.compressedBlob);
 
   return (
     <PDFPageLayout
@@ -342,6 +409,22 @@ export const PDFCompress = () => {
       maxWidth="max-w-6xl"
       centerHeader={false}
     >
+      {/* Info Banner - 500KB Rule */}
+      {files.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+          <div className="text-sm text-blue-800 dark:text-blue-200">
+            <span className="font-semibold">Bilgi:</span> Sadece 500KB üzerindeki PDF dosyaları sıkıştırılır. 
+            Daha küçük dosyalar zaten optimize kabul edilir.
+            {hasSmallFiles && (
+              <span className="block mt-1 text-blue-600 dark:text-blue-400">
+                ⚠️ {stats.tooSmallCount} dosya 500KB altında olduğu için atlandı.
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       {files.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -435,32 +518,45 @@ export const PDFCompress = () => {
               </DialogHeader>
               <div className="space-y-4 text-sm text-muted-foreground">
                 <p>
-                  Her sayfa metin/görsel oranına göre analiz edilir: metin ağırlıklı sayfalar (ekstre, rapor, küçük logolu belgeler) kayıpsız kopyalanır ve yazılar seçilebilir kalır; sadece görsel ağırlıklı sayfalar sıkıştırılır.
+                  Akıllı nesne-tabanlı sıkıştırma: Her PDF sayfası piksel-piksel analiz edilir ve içerik türüne göre optimize edilir:
                 </p>
                 <div className="space-y-3">
                   <div>
-                    <p className="font-semibold text-foreground mb-1">📝 Metin Ağırlıklı Sayfalar</p>
+                    <p className="font-semibold text-foreground mb-1">📝 Metin Sayfaları (Kayıpsız)</p>
                     <p className="text-xs">
-                      Seçilebilir yazılar, tablolar içeren sayfalar <strong>kayıpsız</strong> kopyalanır. 
-                      Yazılar seçilebilir kalır.
+                      Sadece metin içeren sayfalar olduğu gibi korunur. Yazılar tamamen seçilebilir ve vektör kalitesindedir.
                     </p>
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground mb-1">🖼️ Görsel Ağırlıklı Sayfalar</p>
+                    <p className="font-semibold text-foreground mb-1">🖼️ Görsel Sayfaları (Sıkıştırılmış)</p>
                     <p className="text-xs">
-                      Resim ve grafikler içeren sayfalar seçilen seviyeye göre sıkıştırılır:
+                      Sadece görsel içeren sayfalar JPEG formatına dönüştürülür. Kalite seviyesine göre optimize edilir.
                     </p>
-                    <ul className="list-disc list-inside text-xs mt-1 ml-2 space-y-0.5">
-                      <li><strong>Düşük:</strong> %92 kalite - Kayba yakın minimum sıkıştırma</li>
-                      <li><strong>Orta:</strong> %80 kalite - Dengeli kalite ve boyut</li>
-                      <li><strong>Yüksek:</strong> %55 kalite - Maksimum sıkıştırma</li>
-                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">📊 Hibrit Sayfalar (Akıllı)</p>
+                    <p className="text-xs">
+                      Hem metin hem görsel içeren sayfalarda metin seçilebilir kalır, sadece görseller ayrı ayrı sıkıştırılır. 
+                      Tablolar ve raporlar bozulmadan kalite düşürülür.
+                    </p>
                   </div>
                 </div>
-                <p className="text-xs bg-sky-50 dark:bg-sky-950/20 p-2 rounded border border-sky-200 dark:border-sky-900">
-                  <strong>⚠️ Önemli:</strong> Eğer sıkıştırma sonrası dosya büyürse veya çok az küçülürse, 
-                  orijinal dosya otomatik olarak korunur.
-                </p>
+                
+                <div className="bg-amber-50 dark:bg-amber-950/20 p-2 rounded border border-amber-200 dark:border-amber-900">
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">⚠️ Minimum Boyut Şartı</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    500KB altındaki dosyalar otomatik olarak "zaten optimize" kabul edilir ve işleme alınmaz.
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold">Kalite Seviyeleri:</p>
+                  <ul className="list-disc list-inside text-xs space-y-0.5 ml-1">
+                    <li><strong>Düşük:</strong> %92 kalite - Metin ağırlıklı dokümanlar için ideal</li>
+                    <li><strong>Orta:</strong> %80 kalite - Dengeli kullanım</li>
+                    <li><strong>Yüksek:</strong> %60 kalite - Maksimum boyut tasarrufu</li>
+                  </ul>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
@@ -485,7 +581,7 @@ export const PDFCompress = () => {
         <PDFDropzone
           inputId="pdf-compress-input"
           dropText={t.pdfCompress.dropOrSelect}
-          dropSubtext={t.pdfCompress.multipleSupported}
+          dropSubtext="PDF dosyaları (min 500KB) yükleyin. Küçük dosyalar otomatik olarak atlanır."
           isDragOver={isDragOver}
           onDrop={(e) => {
             e.preventDefault();
@@ -533,7 +629,7 @@ export const PDFCompress = () => {
                 <Minimize2 className="w-4 h-4 sm:mr-1" />
                 <span className="hidden sm:inline">
                   {isCompressingAll ? t.pdfCompress.compressing : 
-                   !canCompress ? t.pdfCompress.compressAllDone : t.pdfCompress.compressAll}
+                   !canCompress ? 'Sıkıştırılabilir dosya yok' : t.pdfCompress.compressAll}
                 </span>
               </Button>
               {files.some(f => f.compressedBlob) && (
@@ -551,11 +647,12 @@ export const PDFCompress = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {files.map(({ file, id, compressedBlob, originalSize, compressedSize, compressionRatio, isProcessing, error, progress, compressionLevel: fileLevel, wasAlreadyOptimized }) => (
+            {files.map(({ file, id, compressedBlob, originalSize, compressedSize, compressionRatio, isProcessing, error, progress, compressionLevel: fileLevel, wasAlreadyOptimized, tooSmall, stats }) => (
                 <Card key={id} className={cn(
                   "overflow-hidden transition-all duration-200 hover:shadow-lg",
                   isProcessing && "ring-2 ring-blue-200",
-                  error && "ring-2 ring-red-200",
+                  error && !tooSmall && "ring-2 ring-red-200",
+                  tooSmall && "ring-2 ring-amber-200 opacity-75",
                   compressedBlob && !wasAlreadyOptimized && "ring-2 ring-green-200",
                   wasAlreadyOptimized && "ring-2 ring-amber-200"
                 )}>
@@ -564,22 +661,27 @@ export const PDFCompress = () => {
                       <div className={cn(
                         "p-1.5 rounded-lg shrink-0",
                         compressedBlob && !wasAlreadyOptimized ? "bg-green-50" : 
-                        wasAlreadyOptimized ? "bg-amber-50" : "bg-red-50"
+                        wasAlreadyOptimized || tooSmall ? "bg-amber-50" : "bg-red-50"
                       )}>
                         <FileText className={cn(
                           "w-5 h-5",
                           compressedBlob && !wasAlreadyOptimized ? "text-green-600" : 
-                          wasAlreadyOptimized ? "text-amber-600" : "text-red-500"
+                          wasAlreadyOptimized || tooSmall ? "text-amber-600" : "text-red-500"
                         )} />
                       </div>
                       
                       <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="font-medium text-sm truncate leading-tight">
-                            {file.name}
-                          </p>
-                          <div className="flex items-center gap-1">
-                            {!compressedBlob && !isProcessing && (
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate leading-tight" title={file.name}>
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(originalSize)} {tooSmall && "• 500KB altı"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {!compressedBlob && !isProcessing && !tooSmall && (
                               <Button
                                 size="sm"
                                 onClick={() => compressSingleFile(id)}
@@ -587,6 +689,11 @@ export const PDFCompress = () => {
                               >
                                 <Minimize2 className="w-4 h-4" />
                               </Button>
+                            )}
+                            {tooSmall && (
+                              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                Atlandı
+                              </span>
                             )}
                             {compressedBlob && (
                               <Button
@@ -608,11 +715,11 @@ export const PDFCompress = () => {
                           </div>
                         </div>
                         
+                        {/* Boyut bilgisi */}
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <span>{formatFileSize(originalSize)}</span>
                           {(compressedBlob != null) && (
                             <>
-                              <span className="text-slate-300">→</span>
+                              <span className="text-slate-400">→</span>
                               <span className={cn(
                                 "font-medium",
                                 wasAlreadyOptimized ? "text-amber-600" : "text-green-600"
@@ -620,12 +727,12 @@ export const PDFCompress = () => {
                                 {formatFileSize(compressedSize ?? compressedBlob.size)}
                               </span>
                               {!wasAlreadyOptimized && compressionRatio !== undefined && compressionRatio > 0 && (
-                                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1 py-0.5 rounded-full">
+                                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded-full font-medium">
                                   -{Math.round(compressionRatio)}%
                                 </span>
                               )}
                               {wasAlreadyOptimized && (
-                                <span className="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1 py-0.5 rounded-full">
+                                <span className="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
                                   Optimize
                                 </span>
                               )}
@@ -637,6 +744,32 @@ export const PDFCompress = () => {
                             </>
                           )}
                         </div>
+
+                        {/* Sayfa istatistikleri (sıkıştırma sonrası) */}
+                        {compressedBlob && stats && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(stats.textPages ?? 0) > 0 && (
+                              <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                                {stats.textPages} metin
+                              </span>
+                            )}
+                            {(stats.hybridPages ?? 0) > 0 && (
+                              <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
+                                {stats.hybridPages} hibrit
+                              </span>
+                            )}
+                            {(stats.imagePages ?? 0) > 0 && (
+                              <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded">
+                                {stats.imagePages} görsel
+                              </span>
+                            )}
+                            {(stats.imagesCompressed ?? 0) > 0 && (
+                              <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
+                                {stats.imagesCompressed} görsel optimize
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Progress Bar */}
                         {isProcessing && (
@@ -650,10 +783,18 @@ export const PDFCompress = () => {
                         )}
 
                         {/* Error */}
-                        {error && (
+                        {error && !tooSmall && (
                           <div className="flex items-center gap-1 text-xs text-red-500 bg-red-50 dark:bg-red-950/20 p-1.5 rounded">
-                            <AlertCircle className="w-3 h-3" />
-                            {error}
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span className="line-clamp-2">{error}</span>
+                          </div>
+                        )}
+
+                        {/* Too Small Warning */}
+                        {tooSmall && (
+                          <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded">
+                            <Info className="w-3 h-3 shrink-0" />
+                            500KB altındaki dosyalar sıkıştırılamaz
                           </div>
                         )}
 
