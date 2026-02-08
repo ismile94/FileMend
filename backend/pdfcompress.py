@@ -1,6 +1,6 @@
 """
-PDF Compression API Service
-FastAPI backend for intelligent PDF compression with object-level optimization
+PDF Compression API Service - FIXED VERSION
+FastAPI backend for intelligent PDF compression with proper level differentiation
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="PDF Compress API",
     description="Intelligent PDF compression with object-level text/image/table preservation",
-    version="2.0.0"
+    version="2.1.0"
 )
 
 # CORS
@@ -56,11 +56,26 @@ app.add_middleware(
 # Minimum dosya boyutu (bytes) - 500KB
 MIN_FILE_SIZE = 500 * 1024
 
-# Compression settings
+# ✅ FIXED: Compression settings with clearer differentiation
 COMPRESSION_SETTINGS = {
-    'low': {'quality': 92, 'max_dimension': 3000, 'dpi_threshold': 150},
-    'medium': {'quality': 80, 'max_dimension': 2500, 'dpi_threshold': 120},
-    'extreme': {'quality': 60, 'max_dimension': 2000, 'dpi_threshold': 100}
+    'low': {
+        'quality': 90,           # Yüksek kalite
+        'max_dimension': 4000,   # Büyük boyut
+        'raster_dpi': 200,       # Yüksek DPI
+        'auto_quality_boost': 5  # Otomatik artırma miktarı
+    },
+    'medium': {
+        'quality': 75,           # Orta kalite
+        'max_dimension': 2400,   # Orta boyut
+        'raster_dpi': 150,       # Orta DPI
+        'auto_quality_boost': 3  # Daha az artırma
+    },
+    'extreme': {
+        'quality': 55,           # Düşük kalite
+        'max_dimension': 1600,   # Küçük boyut
+        'raster_dpi': 100,       # Düşük DPI
+        'auto_quality_boost': 0  # Artırma yok
+    }
 }
 
 
@@ -78,7 +93,7 @@ def analyze_page_detailed(page) -> Dict:
         text_chars = 0
         
         for block in text_blocks:
-            if len(block) >= 7:  # x0, y0, x1, y1, text, block_no, block_type
+            if len(block) >= 7:
                 x0, y0, x1, y1 = block[0], block[1], block[2], block[3]
                 w, h = max(0, x1 - x0), max(0, y1 - y0)
                 text_area += w * h
@@ -89,12 +104,10 @@ def analyze_page_detailed(page) -> Dict:
         images = page.get_images(full=True)
         image_area = 0
         
-        # Her görselin sayfadaki pozisyonunu ve boyutunu bul
         image_list = []
         for img_index, img in enumerate(images, start=1):
             xref = img[0]
             try:
-                # Görselin sayfadaki kullanımını bul (bbox)
                 for img_info in page.get_image_info():
                     if img_info['xref'] == xref:
                         bbox = img_info['bbox']
@@ -114,17 +127,14 @@ def analyze_page_detailed(page) -> Dict:
             except Exception as e:
                 logger.warning(f"Image analysis error for xref {xref}: {e}")
         
-        # Tablo tespiti (basit sezgisel: çok sayıda küçük metin bloğu + düzenli yapı)
+        # Tablo tespiti
         is_table_heavy = False
         if len(text_blocks) > 5:
-            # Blokların düzenli aralıklarla olup olmadığını kontrol et
-            y_positions = [b[1] for b in text_blocks[:10]]  # İlk 10 bloğun Y pozisyonu
+            y_positions = [b[1] for b in text_blocks[:10]]
             if len(y_positions) > 3:
-                # Y pozisyonlarındaki düzenlilik
                 diffs = [y_positions[i+1] - y_positions[i] for i in range(len(y_positions)-1)]
                 avg_diff = sum(diffs) / len(diffs) if diffs else 0
                 variance = sum((d - avg_diff) ** 2 for d in diffs) / len(diffs) if diffs else 0
-                # Düşük varyans = düzenli satırlar (tablo olabilir)
                 if variance < 5 and text_chars > 200:
                     is_table_heavy = True
         
@@ -152,7 +162,7 @@ def analyze_page_detailed(page) -> Dict:
 
 def compress_image_advanced(image_bytes: bytes, settings: Dict) -> bytes:
     """
-    Görseli gelişmiş şekilde sıkıştır
+    ✅ FIXED: Görseli gelişmiş şekilde sıkıştır (quality boost kontrolü eklendi)
     """
     try:
         img = Image.open(io.BytesIO(image_bytes))
@@ -160,7 +170,6 @@ def compress_image_advanced(image_bytes: bytes, settings: Dict) -> bytes:
         
         # RGB/RGBA kontrolü
         if img.mode in ('RGBA', 'LA', 'P'):
-            # Beyaz arka planla birleştir
             background = Image.new('RGB', img.size, (255, 255, 255))
             if img.mode == 'P':
                 img = img.convert('RGBA')
@@ -170,12 +179,13 @@ def compress_image_advanced(image_bytes: bytes, settings: Dict) -> bytes:
         elif img.mode != 'RGB':
             img = img.convert('RGB')
         
-        # Boyut kontrolü - çok büyük görselleri ölçeklendir
+        # ✅ FIXED: Boyut kontrolü - max_dimension kullan
         max_dim = settings['max_dimension']
         if max(img.width, img.height) > max_dim:
             ratio = max_dim / max(img.width, img.height)
             new_size = (int(img.width * ratio), int(img.height * ratio))
             img = img.resize(new_size, Image.Resampling.LANCZOS)
+            logger.info(f"Resized image from {img.width}x{img.height} to {new_size[0]}x{new_size[1]}")
         
         # JPEG sıkıştırma
         output = io.BytesIO()
@@ -183,25 +193,26 @@ def compress_image_advanced(image_bytes: bytes, settings: Dict) -> bytes:
         # Kalite ayarı
         quality = settings['quality']
         
-        # Görsel içeriğine göre kaliteyi ayarla (basit sezgisel)
-        # Çok detaylı görsellerde biraz daha yüksek kalite
-        img_array = list(img.getdata())
-        # Basit varyans hesabı (detay göstergesi)
-        if len(img_array) > 1000:
-            sample = img_array[::len(img_array)//1000]  # 1000 örnek
-            avg_color = (
-                sum(p[0] for p in sample) / len(sample),
-                sum(p[1] for p in sample) / len(sample),
-                sum(p[2] for p in sample) / len(sample)
-            )
-            variance = sum(
-                ((p[0]-avg_color[0])**2 + (p[1]-avg_color[1])**2 + (p[2]-avg_color[2])**2) 
-                for p in sample
-            ) / len(sample)
-            
-            # Yüksek varyans = detaylı görsel, kaliteyi %5 artır
-            if variance > 1000:
-                quality = min(95, quality + 5)
+        # ✅ FIXED: Otomatik kalite artırma - sadece izin verilirse
+        auto_boost = settings.get('auto_quality_boost', 0)
+        if auto_boost > 0:
+            img_array = list(img.getdata())
+            if len(img_array) > 1000:
+                sample = img_array[::len(img_array)//1000]
+                avg_color = (
+                    sum(p[0] for p in sample) / len(sample),
+                    sum(p[1] for p in sample) / len(sample),
+                    sum(p[2] for p in sample) / len(sample)
+                )
+                variance = sum(
+                    ((p[0]-avg_color[0])**2 + (p[1]-avg_color[1])**2 + (p[2]-avg_color[2])**2) 
+                    for p in sample
+                ) / len(sample)
+                
+                # Yüksek varyans = detaylı görsel
+                if variance > 1000:
+                    quality = min(95, quality + auto_boost)
+                    logger.info(f"Quality boosted from {settings['quality']} to {quality} (variance: {variance:.0f})")
         
         img.save(output, format='JPEG', quality=quality, optimize=True, progressive=True)
         compressed = output.getvalue()
@@ -210,6 +221,7 @@ def compress_image_advanced(image_bytes: bytes, settings: Dict) -> bytes:
         if len(compressed) >= len(image_bytes) and original_format in ['JPEG', 'JPG']:
             return image_bytes
             
+        logger.info(f"Compressed image: {len(image_bytes)} → {len(compressed)} bytes ({100*(len(image_bytes)-len(compressed))/len(image_bytes):.1f}% reduction)")
         return compressed
         
     except Exception as e:
@@ -217,68 +229,9 @@ def compress_image_advanced(image_bytes: bytes, settings: Dict) -> bytes:
         return image_bytes
 
 
-def optimize_page_content(page, new_page, settings: Dict) -> Dict:
-    """
-    Sayfa içeriğini optimize et: Metni koru, görselleri sıkıştır
-    """
-    stats = {'images_processed': 0, 'images_compressed': 0, 'bytes_saved': 0}
-    
-    try:
-        # 1. Metin katmanını kopyala (seçilebilir metin korunur)
-        # PyMuPDF'de metin katmanı otomatik korunur when using show_pdf_page veya insert_pdf
-        # Ancak biz görsel nesneleri ayrı işleyeceğiz
-        
-        # 2. Görsel nesneleri bul ve işle
-        images = page.get_images(full=True)
-        
-        if not images:
-            # Görsel yoksa sayfayı olduğu gibi kopyala
-            return stats
-        
-        # Sayfadaki görsel kullanımlarını bul
-        image_info_list = []
-        for img_index, img in enumerate(images, start=1):
-            xref = img[0]
-            try:
-                # Orijinal görseli çıkar
-                base_image = page.parent.extract_image(xref)
-                if not base_image:
-                    continue
-                    
-                image_bytes = base_image["image"]
-                ext = base_image["ext"]
-                
-                # Görselin sayfadaki tüm kullanımlarını bul
-                for img_info in page.get_image_info():
-                    if img_info['xref'] == xref:
-                        bbox = fitz.Rect(img_info['bbox'])
-                        
-                        # Görseli sıkıştır
-                        compressed_bytes = compress_image_advanced(image_bytes, settings)
-                        
-                        if len(compressed_bytes) < len(image_bytes):
-                            stats['images_compressed'] += 1
-                            stats['bytes_saved'] += (len(image_bytes) - len(compressed_bytes))
-                        
-                        # Yeni görseli ekle ve yerleştir
-                        # Not: Bu yaklaşım yerine, daha temiz bir yöntem kullanacağız
-                        # Tüm sayfayı yeniden oluşturmak yerine, görselleri değiştireceğiz
-                        
-            except Exception as e:
-                logger.warning(f"Image processing error: {e}")
-                continue
-        
-        stats['images_processed'] = len(images)
-        return stats
-        
-    except Exception as e:
-        logger.error(f"Page optimization error: {e}")
-        return stats
-
-
 def create_optimized_pdf(input_path: str, output_path: str, settings: Dict) -> Dict:
     """
-    PDF'i optimize et: Metin vektör kalır, görseller sıkıştırılır
+    ✅ FIXED: PDF'i optimize et - tüm sayfa tiplerinde ayarları kullan
     """
     src = fitz.open(input_path)
     doc = fitz.open()
@@ -298,7 +251,7 @@ def create_optimized_pdf(input_path: str, output_path: str, settings: Dict) -> D
             page = src[page_num]
             analysis = analyze_page_detailed(page)
             
-            # Yeni sayfa oluştur (aynı boyutlar)
+            # Yeni sayfa oluştur
             new_page = doc.new_page(width=page.rect.width, height=page.rect.height)
             
             # Sayfa tipine göre strateji
@@ -306,25 +259,43 @@ def create_optimized_pdf(input_path: str, output_path: str, settings: Dict) -> D
             image_ratio = analysis['image_ratio']
             
             if image_ratio < 0.05:
-                # Saf metin sayfası - direkt kopyala
+                # ✅ FIXED: Saf metin sayfası - direkt kopyala (metin için sıkıştırma gerekmez)
                 new_page.show_pdf_page(new_page.rect, src, page_num)
                 total_stats['text_pages'] += 1
+                logger.info(f"Page {page_num+1}: Text-only, copied directly")
                 
             elif text_ratio < 0.05 and image_ratio > 0.3:
-                # Saf görsel sayfası - tam rasterize (eski davranış)
-                mat = fitz.Matrix(1.0, 1.0)
+                # ✅ FIXED: Saf görsel sayfası - raster_dpi ve max_dimension kullan
+                dpi_scale = settings['raster_dpi'] / 72.0  # 72 DPI = varsayılan
+                mat = fitz.Matrix(dpi_scale, dpi_scale)
                 pix = page.get_pixmap(matrix=mat, alpha=False)
-                img_bytes = pix.tobytes("jpeg", jpg_quality=settings['quality'])
+                
+                # PIL'e dönüştür ve boyut kontrolü yap
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                
+                # Boyut sınırlaması
+                max_dim = settings['max_dimension']
+                if max(img.width, img.height) > max_dim:
+                    ratio = max_dim / max(img.width, img.height)
+                    new_size = (int(img.width * ratio), int(img.height * ratio))
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                    logger.info(f"Page {page_num+1}: Resized from {pix.width}x{pix.height} to {new_size[0]}x{new_size[1]}")
+                
+                # JPEG sıkıştırma
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=settings['quality'], optimize=True, progressive=True)
+                img_bytes = output.getvalue()
+                
                 new_page.insert_image(new_page.rect, stream=img_bytes)
                 total_stats['image_pages'] += 1
+                logger.info(f"Page {page_num+1}: Image-only, rasterized at {settings['raster_dpi']} DPI, quality {settings['quality']}")
                 
             else:
-                # Hibrit sayfa - metni koru, görselleri optimize et
-                # 1. Önce sayfanın arka planını/ana içeriğini kopyala
+                # ✅ IMPROVED: Hibrit sayfa - daha akıllı yaklaşım
+                # Önce sayfayı vektör olarak kopyala
                 new_page.show_pdf_page(new_page.rect, src, page_num)
                 
-                # 2. Görsel nesneleri bul ve optimize et
-                # Bu karmaşık bir işlem - görselleri yeniden sıkıştırıp yerleştir
+                # Sonra her görseli ayrı sıkıştır
                 images = page.get_images(full=True)
                 
                 for img_idx, img in enumerate(images):
@@ -345,15 +316,8 @@ def create_optimized_pdf(input_path: str, output_path: str, settings: Dict) -> D
                             # Görseli sıkıştır
                             compressed = compress_image_advanced(original_bytes, settings)
                             
-                            # Eğer sıkıştırma başarılı olduysa, görseli değiştir
+                            # Eğer sıkıştırma başarılı olduysa
                             if len(compressed) < len(original_bytes):
-                                # Mevcut görseli yeni sıkıştırılmışıyla değiştir
-                                # Not: PyMuPDF'de mevcut görseli değiştirmek yerine 
-                                # üzerine yeni bir görsel yerleştiriyoruz
-                                
-                                # Görsel alanını beyaz arka planla temizle (opsiyonel)
-                                # new_page.draw_rect(bbox, color=(1, 1, 1), fill=(1, 1, 1))
-                                
                                 # Yeni sıkıştırılmış görseli yerleştir
                                 new_page.insert_image(bbox, stream=compressed)
                                 
@@ -367,18 +331,21 @@ def create_optimized_pdf(input_path: str, output_path: str, settings: Dict) -> D
                         continue
                 
                 total_stats['hybrid_pages'] += 1
+                logger.info(f"Page {page_num+1}: Hybrid, {total_stats['images_compressed']} images compressed")
             
             total_stats['pages_processed'] += 1
         
-        # PDF'i kaydet (agresif optimizasyon)
+        # PDF'i kaydet
         doc.save(
             output_path, 
             garbage=4, 
             deflate=True, 
             clean=True,
-            linear=True,  # Web görüntüleme için optimize et
+            linear=True,
             pretty=False
         )
+        
+        logger.info(f"PDF optimization complete: {total_stats}")
         
     finally:
         doc.close()
@@ -393,8 +360,9 @@ async def root():
     return {
         "status": "healthy",
         "service": "PDF Compress API",
-        "version": "2.0.0",
-        "min_file_size": MIN_FILE_SIZE
+        "version": "2.1.0 (Fixed)",
+        "min_file_size": MIN_FILE_SIZE,
+        "compression_levels": list(COMPRESSION_SETTINGS.keys())
     }
 
 
@@ -417,6 +385,7 @@ async def compress_pdf(
         level = 'medium'
     
     settings = COMPRESSION_SETTINGS[level]
+    logger.info(f"Starting compression with level '{level}': {settings}")
     
     try:
         # PDF'i oku
@@ -452,14 +421,19 @@ async def compress_pdf(
         
         compressed_size = len(optimized_bytes)
         
-        # Eğer dosya büyüdüyse veya çok az küçüldüyse orijinali döndür
-        min_expected_ratio = 2 if level == 'low' else 5 if level == 'medium' else 8
+        # ✅ FIXED: Daha esnek eşik değerleri
+        min_expected_ratio_map = {'low': 5, 'medium': 10, 'extreme': 15}
+        min_expected_ratio = min_expected_ratio_map.get(level, 10)
         actual_ratio = ((original_size - compressed_size) / original_size) * 100
+        
+        logger.info(f"Compression result: {original_size} → {compressed_size} bytes ({actual_ratio:.2f}% reduction)")
         
         if actual_ratio < min_expected_ratio:
             # Temizlik
             os.unlink(tmp_input_path)
             os.unlink(output_path)
+            
+            logger.warning(f"Insufficient compression ({actual_ratio:.2f}% < {min_expected_ratio}%), returning original")
             
             return StreamingResponse(
                 io.BytesIO(pdf_bytes),
