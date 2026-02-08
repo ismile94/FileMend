@@ -110,16 +110,6 @@ export const ImageRotate = () => {
       {file && (
         <Card className="mt-6">
           <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-6 p-3 bg-muted rounded-lg">
-              <ImageIcon className="w-8 h-8 text-green-500" />
-              <div>
-                <p className="font-medium">{file.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatFileSize(file.size)}
-                </p>
-              </div>
-            </div>
-
             {preview && (
               <div className="mb-6">
                 <Label className="mb-2 block">{t.imageConvert.preview}</Label>

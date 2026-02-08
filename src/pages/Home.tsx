@@ -236,40 +236,25 @@ export const Home = () => {
             </div>
           </div>
 
-          {/* Category Info */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className={cn("p-2.5 rounded-xl border shadow-sm", currentCategory.bg, currentCategory.color, currentCategory.border)}>
-              <currentCategory.icon className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">{currentCategory.label} Tools</h2>
-              <p className="text-sm text-muted-foreground">
-                {activeCategory === 'pdf' && "Edit, split, and optimize your documents"}
-                {activeCategory === 'audio' && "Convert, trim, and merge audio files"}
-                {activeCategory === 'image' && "Compress, resize, and convert images"}
-              </p>
-            </div>
-          </div>
-
           {/* Tools Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
             {filteredTools.map((tool) => (
               <Link 
                 key={tool.path} 
                 to={tool.path}
-                className="group flex flex-col p-5 rounded-xl border bg-card hover:shadow-lg transition-all hover:border-primary/50 hover:-translate-y-1"
+                className="group flex flex-col p-3 rounded-lg border bg-card hover:shadow-md transition-all hover:border-primary/50 hover:-translate-y-0.5"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={cn("p-3 rounded-xl shadow-sm", tool.color)}>
-                    <tool.icon className="w-6 h-6 text-white" />
+                <div className="flex items-start justify-between mb-2">
+                  <div className={cn("p-2 rounded-lg shadow-sm", tool.color)}>
+                    <tool.icon className="w-4 h-4 text-white" />
                   </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" />
                 </div>
                 
-                <h3 className="font-semibold mb-1.5 line-clamp-1">
+                <h3 className="font-semibold text-sm mb-0.5 line-clamp-1">
                   {tool.title}
                 </h3>
-                <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-snug">
                   {tool.description}
                 </p>
               </Link>

@@ -26,25 +26,25 @@ export const ToolCard = ({
     <Card
       onClick={() => navigate(path)}
       className={cn(
-        'cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02]',
+        'cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01]',
         'group border-2 border-transparent hover:border-primary/20',
         className
       )}
     >
-      <CardContent className="p-6">
-        <div className="flex items-start gap-4">
+      <CardContent className="p-3">
+        <div className="flex items-start gap-3">
           <div className={cn(
-            'p-3 rounded-xl transition-transform duration-200 group-hover:scale-110',
+            'p-2 rounded-lg transition-transform duration-200 group-hover:scale-105',
             color,
             'text-white'
           )}>
-            <Icon className="w-6 h-6" />
+            <Icon className="w-4 h-4" />
           </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold mb-1 group-hover:text-primary transition-colors">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold mb-0.5 group-hover:text-primary transition-colors line-clamp-1">
               {title}
             </h3>
-            <p className="text-sm text-muted-foreground line-clamp-2">
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-snug">
               {description}
             </p>
           </div>

@@ -127,16 +127,6 @@ export const AudioConvert: React.FC = () => {
       {file && (
         <Card className="mt-6">
           <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-6 p-3 bg-muted rounded-lg">
-              <FileAudio className="w-8 h-8 text-blue-500" />
-              <div>
-                <p className="font-medium">{file.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatFileSize(file.size)}
-                </p>
-              </div>
-            </div>
-
             <div className="mb-6">
               <Label htmlFor="format" className="text-base font-medium mb-2 block">
                 {t.audioConvert.outputFormat}
